@@ -70,6 +70,10 @@
           <button id="playerClose" class="close">✕</button>
         </div>
         <video id="playerVideo" controls autoplay playsinline></video>
+        <div id="playerQWrap" class="player-qwrap" style="display:none;align-items:center;gap:8px;padding:6px 12px;font-size:13px;color:#8b949e">
+          <label for="playerQuality">Qualità:</label>
+          <select id="playerQuality" style="background:#161b22;color:#e6edf3;border:1px solid #30363d;border-radius:6px;padding:4px 8px"></select>
+        </div>
         <div id="playerStatus" class="player-status">Caricamento...</div>
         <div id="playerAlts" class="player-alts"></div>
         <div id="playerEpg" class="player-epg"><div class="epg-title">Guida programma</div><div class="epg-body">Caricamento...</div></div>
@@ -116,12 +120,38 @@
           lowLatencyMode: false,
           manifestLoadingTimeOut: 15000,
           fragLoadingTimeOut: 15000,
+          // ABR prudente: parte basso e sale se la rete regge (aiuta connessioni lente)
+          abrBandWidthFactor: 0.5,
+          abrBandWidthUpFactor: 0.5,
+          abrEwmaDefaultEstimate: 500000,
+          abrMaxWithRealBitrate: true,
         });
         hls.loadSource(t.url);
         hls.attachMedia(video);
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
           // forza la prima traccia audio (evita TS multi-programma video-only)
           try { if (hls.audioTracks && hls.audioTracks.length) hls.audioTrack = hls.audioTracks[0].id; } catch (e) {}
+          // Selettore qualità: visibile SOLO se il canale ha più livelli (Amagi/Streamup/Infomaniak ecc.)
+          const qWrap = document.getElementById('playerQWrap');
+          const qSel = document.getElementById('playerQuality');
+          if (qSel) {
+            qSel.innerHTML = '<option value="-1">Auto</option>';
+            if (hls.levels && hls.levels.length > 1) {
+              hls.levels.forEach((lv, i) => {
+                const h = lv.height ? lv.height + 'p' : ('~' + Math.round((lv.bitrate || 0) / 1000) + 'kbps');
+                const opt = document.createElement('option');
+                opt.value = i;
+                opt.textContent = h;
+                qSel.appendChild(opt);
+              });
+              if (qWrap) qWrap.style.display = 'flex';
+            }
+            qSel.onchange = () => {
+              const v = parseInt(qSel.value, 10);
+              hls.currentLevel = v; // -1 = auto
+              status.textContent = v === -1 ? 'Streaming (auto)' : 'Streaming (' + qSel.options[qSel.selectedIndex].text + ')';
+            };
+          }
           video.muted = false; video.volume = 1.0;
           video.play().catch(() => {
             // autoplay bloccato dal browser: mostra pulsante per attivare audio
