@@ -1,0 +1,24 @@
+:root { color-scheme: dark; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, -apple-system, sans-serif; background: #0d1117; color: #e6edf3; min-height: 100vh; }
+header { padding: 16px 16px 8px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; background: #0d1117; z-index: 10; }
+header h1 { font-size: 20px; }
+.status { font-size: 12px; color: #8b949e; max-width: 60%; text-align: right; }
+.filters { padding: 8px 16px; display: flex; gap: 8px; flex-wrap: wrap; }
+.filters input, .filters select { background: #161b22; color: #e6edf3; border: 1px solid #30363d; border-radius: 8px; padding: 8px 10px; font-size: 14px; flex: 1; min-width: 120px; }
+.channel-list { list-style: none; padding: 8px 16px 90px; }
+.channel-list li { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 12px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
+.channel-list li:active { background: #1f2937; }
+.channel-name { font-size: 15px; font-weight: 600; }
+.channel-meta { font-size: 12px; color: #8b949e; margin-top: 2px; }
+.badge { font-size: 10px; padding: 2px 6px; border-radius: 6px; background: #21262d; color: #8b949e; text-transform: uppercase; }
+.badge.http { background: #3b2f00; color: #e3b341; }
+.badge.pluto { background: #0e3a2f; color: #4ade80; }
+.player-overlay { position: fixed; inset: 0; background: #000; z-index: 100; display: flex; flex-direction: column; }
+.player-overlay.hidden { display: none; }
+.player-topbar { display: flex; align-items: center; gap: 12px; padding: 12px; background: #0d1117; }
+.player-topbar button { background: #21262d; border: none; color: #e6edf3; font-size: 18px; border-radius: 8px; padding: 8px 14px; cursor: pointer; }
+#playerTitle { flex: 1; font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#video { flex: 1; width: 100%; background: #000; }
+.player-msg { padding: 12px; text-align: center; font-size: 14px; color: #f0b429; background: #1f1a00; }
+.hidden { display: none !important; }

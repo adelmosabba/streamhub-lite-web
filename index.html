@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0d1117">
+<title>StreamHub Lite</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>StreamHub Lite</h1>
+  <div id="status" class="status">caricamento…</div>
+</header>
+
+<main>
+  <div id="filters" class="filters">
+    <input id="search" type="search" placeholder="Cerca canale…">
+    <select id="countryFilter"><option value="">Tutti i paesi</option></select>
+    <select id="sportFilter"><option value="">Tutti gli sport</option></select>
+  </div>
+  <ul id="channelList" class="channel-list"></ul>
+</main>
+
+<div id="playerOverlay" class="player-overlay hidden">
+  <div class="player-topbar">
+    <button id="closePlayer">✕</button>
+    <span id="playerTitle"></span>
+    <button id="castBtn" class="cast-btn" title="Cast">📺</button>
+  </div>
+  <video id="video" controls playsinline autoplay></video>
+  <div id="playerMsg" class="player-msg"></div>
+</div>
+
+<script src="vendor/hls.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
