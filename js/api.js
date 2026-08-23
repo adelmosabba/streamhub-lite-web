@@ -102,7 +102,14 @@ const Api = {
   async eventsCurrent(channel) {
     try {
       const idx = await loadIndex();
-      const list = (idx.events || []).filter(e => (e.channel_keys || []).includes(channel));
+      const chanMap = {};
+      for (const c of (idx.channels || [])) chanMap[c.key] = c;
+      const list = (idx.events || [])
+        .filter(e => (e.channel_keys || []).includes(channel))
+        .map(e => ({
+          ...e,
+          channels: (e.channel_keys || []).map(k => chanMap[k] || { key: k, name: k, country: '' })
+        }));
       return { ok: true, events: list };
     } catch (e) { return { ok: true, events: [] }; }
   },
