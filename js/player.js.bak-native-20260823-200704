@@ -111,20 +111,7 @@
       }
       if (mySession !== session) return;  // ri-verifica prima di attaccare hls
       status.textContent = 'Avvio stream...';
-      // FIX 23/08: per i canali Pluto il fetch CORS fallisce -> method native:
-      // usa il media element nativo (no CORS, funziona su Android/WebView/browser mobile).
-      if (t.method === 'native' && video.canPlayType('application/vnd.apple.mpegurl')) {
-        video.src = t.url;
-        video.muted = false; video.volume = 1.0;
-        video.play().catch(() => {
-          status.textContent = '▶ Clicca per attivare audio';
-          video.muted = true;
-          const un = () => { video.muted = false; video.volume = 1.0; video.play().catch(()=>{}); status.textContent = 'Streaming'; };
-          video.addEventListener('click', un, { once: true });
-          status.addEventListener('click', un, { once: true });
-        });
-        status.textContent = 'Streaming';
-      } else if (window.Hls && Hls.isSupported()) {
+      if (window.Hls && Hls.isSupported()) {
         hls = new Hls({
           liveDurationInfinity: true,
           manifestLoadingMaxRetry: 5,

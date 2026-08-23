@@ -1,0 +1,180 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, sans-serif; background: #0f1220; color: #e8eaf0; min-height: 100vh; }
+header { background: #171b2e; padding: 14px 20px; display: flex; flex-wrap: wrap; gap: 14px; align-items: center; position: sticky; top: 0; z-index: 10; }
+h1 { font-size: 20px; }
+nav { display: flex; gap: 6px; }
+nav button { background: #232a45; color: #e8eaf0; border: 0; padding: 8px 14px; border-radius: 8px; cursor: pointer; }
+nav button.active { background: #3b82f6; }
+.filters { display: flex; gap: 10px; align-items: center; margin-left: auto; flex-wrap: wrap; }
+.filters input[type=search] { background: #232a45; border: 0; color: #e8eaf0; padding: 8px 12px; border-radius: 8px; }
+.filters select { background: #232a45; border: 0; color: #e8eaf0; padding: 8px; border-radius: 8px; }
+main { max-width: 1100px; margin: 20px auto; padding: 0 16px; }
+.card { background: #1a1f35; border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; display: flex; gap: 14px; align-items: center; }
+.card .time { min-width: 70px; font-weight: 600; color: #93c5fd; }
+.card .info { flex: 1; }
+.card .league { font-size: 12px; color: #8b93b0; text-transform: uppercase; letter-spacing: .4px; }
+.card .teams { font-size: 16px; font-weight: 500; margin-top: 2px; }
+.card .meta { font-size: 12px; color: #8b93b0; margin-top: 4px; display: flex; gap: 8px; flex-wrap: wrap; }
+.badge { background: #22c55e; color: #0f1220; font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 99px; }
+.badge.live { background: #ef4444; color: #fff; }
+.badge.soon { background: #f59e0b; color: #0f1220; }
+.badge.nostream { background: #2a3150; color: #8b93b0; }
+.group-title { margin: 22px 0 10px; font-size: 15px; color: #93c5fd; text-transform: uppercase; letter-spacing: .5px; }
+footer { text-align: center; color: #5a6280; padding: 24px; font-size: 13px; }
+.empty { text-align: center; color: #8b93b0; padding: 40px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+.ch-card { background: #1a1f35; border-radius: 12px; padding: 12px; }
+.ch-card .name { font-weight: 600; }
+.ch-card .country { font-size: 12px; color: #8b93b0; }
+.epg-row { background: #1a1f35; border-radius: 10px; padding: 10px 14px; margin-bottom: 6px; display: flex; gap: 12px; align-items: center; }
+.epg-row .time { min-width: 90px; font-size: 13px; color: #93c5fd; }
+.epg-row .replay { color: #f59e0b; font-size: 12px; }
+
+/* Player overlay */
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,.82); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+.player-box { width: min(960px, 94vw); background: #141824; border-radius: 12px; padding: 14px; box-shadow: 0 10px 40px rgba(0,0,0,.6); }
+.player-head { display: flex; justify-content: space-between; align-items: center; color: #e6e9f2; margin-bottom: 10px; }
+.close { background: #2a3040; color: #fff; border: 0; border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+#playerVideo { width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 8px; }
+.player-status { margin-top: 8px; font-size: 13px; color: #8b93b0; }
+
+/* Player overlay */
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,.82); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+.player-box { width: min(960px, 94vw); background: #141824; border-radius: 12px; padding: 14px; box-shadow: 0 10px 40px rgba(0,0,0,.6); }
+.player-head { display: flex; justify-content: space-between; align-items: center; color: #e6e9f2; margin-bottom: 10px; }
+.close { background: #2a3040; color: #fff; border: 0; border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+#playerVideo { width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 8px; }
+.player-status { margin-top: 8px; font-size: 13px; color: #8b93b0; }
+
+/* Classificazione gerarchica: sport -> league */
+.sport-title { margin: 18px 0 4px; font-size: 16px; font-weight: 700; color: #dbe2ff; display: flex; align-items: center; gap: 8px; }
+.sport-title .sport-ico { font-size: 18px; }
+.sport-title .cnt { color: #8b93b0; font-weight: 500; font-size: 13px; }
+.league-title { margin: 8px 0 6px; font-size: 13px; color: #93c5fd; text-transform: uppercase; letter-spacing: .4px; display: flex; gap: 8px; align-items: center; }
+.league-title .cnt { color: #5a6280; font-size: 12px; }
+
+/* Tabs giorni (data esatta) */
+.day-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin: 6px 0 16px; }
+.day-tab { background: #1a1f35; color: #c7cde8; border: 1px solid #2a3150; padding: 8px 14px; border-radius: 10px; cursor: pointer; font-size: 13px; display: flex; gap: 6px; align-items: center; }
+.day-tab .cnt { color: #5a6280; font-size: 12px; }
+.day-tab.active { background: #3b82f6; border-color: #3b82f6; color: #fff; }
+.day-tab.active .cnt { color: #dbe8ff; }
+
+/* Accordion sport (collapsed di default) */
+.sport-group { background: #161b30; border: 1px solid #242c4d; border-radius: 12px; margin-bottom: 10px; overflow: hidden; }
+.sport-group summary { list-style: none; cursor: pointer; padding: 12px 16px; font-size: 15px; font-weight: 700; color: #dbe2ff; display: flex; align-items: center; gap: 8px; }
+.sport-group summary::-webkit-details-marker { display: none; }
+.sport-group summary::before { content: '▸'; color: #5a6280; transition: transform .15s; }
+.sport-group[open] summary::before { transform: rotate(90deg); }
+.sport-group summary .sport-ico { font-size: 17px; }
+.sport-group summary .cnt { color: #8b93b0; font-weight: 500; font-size: 13px; margin-left: auto; }
+.sport-group .sport-body { padding: 0 12px 12px; }
+.sport-group .league-title { margin: 10px 4px 6px; }
+
+.player-epg { margin-top: 12px; padding: 10px 12px; background: rgba(0,0,0,0.45); border-radius: 8px; font-size: 13px; color: #dfe3f0; max-height: 220px; overflow-y: auto; }
+.player-epg .epg-title { font-weight: 700; margin-bottom: 6px; color: #aab6e0; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; }
+.player-epg .epg-now { padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.12); margin-bottom: 6px; }
+.player-epg .epg-item { padding: 3px 0; color: #b8c0d8; }
+.player-epg .epg-next { margin-top: 4px; color: #8b93b0; font-size: 11px; text-transform: uppercase; }
+
+/* === EPG Grid: timeline oraria (canali in riga) === */
+.epg-toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 4px 0 10px; }
+.epg-nav { background: #1a1f35; color: #c7cde8; border: 1px solid #2a3150; padding: 7px 12px; border-radius: 10px; cursor: pointer; font-size: 13px; transition: background .12s; }
+.epg-nav:hover { background: #232a45; }
+.epg-nav.active { background: #3b82f6; border-color: #3b82f6; color: #fff; }
+.epg-toolbar input[type=date] { background: #1a1f35; color: #e8eaf0; border: 1px solid #2a3150; padding: 6px 10px; border-radius: 10px; font-size: 13px; color-scheme: dark; }
+.epg-label { color: #8b93b0; font-size: 13px; margin-left: 4px; }
+.epg-live-dot { color: #ef4444; font-size: 12px; font-weight: 700; letter-spacing: .5px; }
+
+.epg-scroll { overflow: auto; max-height: calc(100vh - 250px); border: 1px solid #242c4d; border-radius: 12px; background: #10142a; -webkit-overflow-scrolling: touch; scrollbar-width: thin; scrollbar-color: #2a3150 transparent; }
+.epg-grid { min-width: max-content; position: relative; --now-left: 0px; --chan-w: 210px; }
+
+/* Header timeline (sticky top) */
+.epg-head { display: flex; position: sticky; top: 0; z-index: 30; background: #171b2e; border-bottom: 1px solid #242c4d; }
+.epg-corner { width: 210px; min-width: 210px; position: sticky; left: 0; z-index: 31; background: #171b2e; border-right: 1px solid #242c4d; display: flex; align-items: center; padding: 0 10px; font-size: 11px; color: #5a6280; text-transform: uppercase; letter-spacing: .5px; }
+.epg-hours { display: flex; width: var(--win-w, 7200px); min-width: var(--win-w, 7200px); position: relative; }
+/* Segmento giorno (IERI/OGGI/DOMANI) nella timeline continua */
+.epg-dayseg { display: flex; flex-direction: column; justify-content: center; align-items: center; width: 2400px; min-width: 2400px; background: #141a33; border-bottom: 1px solid #2a3150; font-size: 11px; font-weight: 700; color: #c7cde8; letter-spacing: .5px; height: 30px; }
+.epg-dayseg i { font-style: normal; color: #5a6280; font-weight: 600; font-size: 10px; }
+.epg-hour { width: 100px; height: 28px; border-left: 1px solid #242c4d; position: relative; }
+.epg-hour span { position: absolute; top: 4px; left: 5px; font-size: 11px; color: #8b93b0; }
+.epg-tick30 { position: absolute; top: 0; bottom: 0; left: 50px; border-left: 1px dashed #1c2340; pointer-events: none; }
+
+/* Gruppo paese (larghezza = colonna canali + 24h) */
+.epg-group { width: 210px; min-width: 210px; background: #1c2340; color: #93c5fd; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; padding: 5px 10px; border-bottom: 1px solid #242c4d; border-right: 1px solid #242c4d; position: sticky; left: 0; z-index: 9; box-sizing: border-box; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.epg-group .cnt { color: #5a6280; font-weight: 600; margin-left: 6px; }
+
+/* Riga canale */
+.epg-row { display: flex; border-bottom: 1px solid #151a30; }
+.epg-chan { width: 210px; min-width: 210px; max-width: 210px; position: sticky; left: 0; z-index: 10; background: #141a33; color: #c7cde8; font-size: 13px; font-weight: 600; padding: 8px 10px; display: flex; align-items: center; border-right: 1px solid #242c4d; white-space: normal; overflow-wrap: anywhere; line-height: 1.25; box-sizing: border-box; }
+.epg-track { width: var(--win-w, 7200px); min-width: var(--win-w, 7200px); min-height: 48px; position: relative; }
+.epg-track:hover { background: rgba(255,255,255,.02); }
+
+/* Blocco programma */
+.epg-prog { position: absolute; top: 4px; bottom: 4px; background: #24304f; border-left: 3px solid #3b82f6; border-radius: 6px; padding: 3px 5px; overflow: hidden; cursor: pointer; transition: background .12s; }
+.epg-prog:hover { background: #2e3d63; }
+.epg-prog-title { font-size: 12px; font-weight: 600; color: #e6e9f2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.25; padding-right: 22px; }
+.epg-prog-time { font-size: 10px; color: #8b93b0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.epg-live { position: absolute; top: 4px; right: 4px; background: #ef4444; color: #fff; font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 99px; }
+.epg-replay { position: absolute; top: 4px; right: 4px; background: #f59e0b; color: #0f1220; font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 99px; }
+
+/* Linea ORA continua: tratto sulla timeline (head) + div unico nel corpo (attraversa tutte le righe) */
+.epg-has-now .epg-hours::after { content: ''; position: absolute; top: 0; bottom: 0; left: var(--now-left); width: 2px; background: #ef4444; z-index: 2; pointer-events: none; box-shadow: 0 0 8px rgba(239,68,68,.5); }
+.epg-nowline { position: absolute; top: 0; bottom: 0; left: calc(var(--now-left) + var(--chan-w)); width: 2px; background: #ef4444; z-index: 4; pointer-events: none; box-shadow: 0 0 8px rgba(239,68,68,.5); }
+
+
+/* --- EPG mobile --- */
+@media (max-width: 640px) {
+  .epg-grid { --chan-w: 110px; }
+  .epg-corner { width: 110px; min-width: 110px; font-size: 9px; padding: 0 6px; }
+  .epg-chan { width: 110px; min-width: 110px; max-width: 110px; font-size: 11px; padding: 6px 6px; }
+  .epg-group { width: 110px; min-width: 110px; font-size: 9px; padding: 4px 6px; }
+  .epg-scroll { max-height: calc(100dvh - 310px); min-height: 260px; }
+  .epg-toolbar { gap: 5px; margin: 3px 0 8px; }
+  .epg-nav { padding: 6px 8px; font-size: 12px; }
+  .epg-label { font-size: 12px; margin-left: 2px; }
+  .epg-prog { padding: 2px 4px; }
+  .epg-prog-title { font-size: 10px; padding-right: 20px; }
+  .epg-prog-time { font-size: 9px; }
+  .epg-hour span { font-size: 10px; }
+}
+
+/* Selettore canali alternativi "Anche su:" nel player */
+.player-alts { margin: 8px 0 10px; padding: 0 4px; }
+.alts-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 6px; font-size: 12px; }
+.alts-ev { font-weight: 600; color: #ffd700; margin-right: 4px; }
+.alts-chip {
+  background: rgba(255, 215, 0, 0.12);
+  color: #eee;
+  border: 1px solid rgba(255, 215, 0, 0.35);
+  border-radius: 14px;
+  padding: 3px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.alts-chip:hover { background: rgba(255, 215, 0, 0.28); border-color: #ffd700; }
+@media (max-width: 600px) {
+  .alts-ev { font-size: 11px; }
+  .alts-chip { font-size: 11px; padding: 3px 8px; }
+}
+
+/* Chip canali nella card evento (selettore multi-canale) */
+.ch-chip-row { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+.ch-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: #1b2133; color: #f0c64a; border: 1px solid #3a4160;
+  border-radius: 999px; padding: 3px 10px; font-size: 11px; cursor: pointer;
+  max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ch-chip:hover { background: #2a3150; border-color: #f0c64a; }
+
+/* Overlay di caricamento sottile: non sostituisce la lista, ci passa sopra */
+.app.is-loading { position: relative; }
+.app.is-loading::after {
+  content: '⏳';
+  position: absolute; top: 8px; right: 12px;
+  font-size: 18px; opacity: 0.7; animation: spin 1s linear infinite;
+  z-index: 20; pointer-events: none;
+}
+@keyframes spin { to { transform: rotate(360deg); } }

@@ -140,21 +140,7 @@ const Api = {
           .replace(/\{APP_NAME\}/g, 'web');
         return { ok: true, method: 'direct', url: u, name: c.name };
       } catch (e) {
-        // FIX 23/08: fetch CORS bloccato (jmp2.uk senza ACAO) -> NON bloccare:
-        // restituisci URL raw con template sostituiti, method native -> il player
-        // usa il media element nativo (non soggetto a CORS) e lo stream gira.
-        const u = (c.plutoUrl || c.url)
-          .replace(/%7BTARGETOPT%7D/g, '1')
-          .replace(/%7BPSID%7D/g, 'abc123')
-          .replace(/%7BUS_PRIVACY%7D/g, '1Y-')
-          .replace(/%7BAPP_DOMAIN%7D/g, 'web')
-          .replace(/%7BAPP_NAME%7D/g, 'web')
-          .replace(/\{TARGETOPT\}/g, '1')
-          .replace(/\{PSID\}/g, 'abc123')
-          .replace(/\{US_PRIVACY\}/g, '1Y-')
-          .replace(/\{APP_DOMAIN\}/g, 'web')
-          .replace(/\{APP_NAME\}/g, 'web');
-        return { ok: true, method: 'native', url: u, name: c.name };
+        return { ok: false, error: 'Pluto richiede risoluzione server (non disponibile in lite)' };
       }
     }
     return { ok: true, method: 'direct', url: c.url, name: c.name };
