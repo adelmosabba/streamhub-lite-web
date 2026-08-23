@@ -68,7 +68,23 @@ const Api = {
   async days() { return { ok: true, days: [] }; },
   async epg(params) {
     const idx = await loadIndex();
-    const programs = (idx.epg && idx.epg[params && params.channel]) || [];
+    const raw = (idx.epg && idx.epg[params && params.channel]) || [];
+    const now = Date.now();
+    const programs = raw.map(p => {
+      const st = new Date(p.start_time || p.start).getTime();
+      const en = new Date(p.end_time || p.end).getTime();
+      let live_flag = '';
+      if (!isNaN(st) && !isNaN(en)) {
+        if (st <= now && en > now) live_flag = 'live';
+        else if (en <= now) live_flag = 'replay';
+      }
+      return {
+        title: p.title || '',
+        start_time: p.start_time || p.start,
+        end_time: p.end_time || p.end,
+        live_flag
+      };
+    }).sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
     return { ok: true, programs };
   },
   async epgNow(channel) {
