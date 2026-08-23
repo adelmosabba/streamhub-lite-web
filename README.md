@@ -1,10 +1,14 @@
-# StreamHub Lite Web
+# EventHub Lite (client)
 
-Client web per StreamHub Lite: lista canali e riproduzione direct via hls.js.
+Web app statica per EventHub Lite. Legge i dati da un indice statico su Gist
+(beacon -> index.json). Nessun server, nessun backend.
 
-## Uso
-Apri `index.html` da un host statico qualsiasi. L'app legge il beacon dal Gist e carica il catalogo.
+## Struttura
+- index.html — UI (tab Eventi/Canali/EPG)
+- css/style.css — tema
+- js/api.js — adattatore dati: beacon -> index.json (interfaccia stile v2)
+- js/app.js, js/player.js, js/views.js — frontend v2 adattato
+- vendor/hls.min.js — player HLS offline
 
-## Sviluppo
-- `app.js` — logica client (bootstrap beacon, filtri, player)
-- `vendor/hls.min.js` — hls.js vendored (nessuna dipendenza esterna)
+## Deploy
+Push su main -> GitHub Pages (https://adelmosabba.github.io/streamhub-lite-web/)

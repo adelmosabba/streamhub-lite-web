@@ -1,0 +1,146 @@
+'use strict';
+// Player overlay: hls.js per gli stream HLS (method direct). Un solo player alla volta.
+(function () {
+  let hls = null;
+
+  function fmtTime(iso) {
+    if (!iso) return '--:--';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '--:--';
+    return d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function loadEpg(channelKey) {
+    const body = document.getElementById('playerEpg')?.querySelector('.epg-body');
+    if (!body) return;
+    Api.epgNow(channelKey).then((e) => {
+      if (!e || !e.ok || (!e.now && (!e.next || !e.next.length))) { body.textContent = 'Nessuna guida disponibile'; return; }
+      let html = '';
+      if (e.now) html += '<div class="epg-now"><b>Ora:</b> ' + fmtTime(e.now.start_time) + ' - ' + fmtTime(e.now.end_time) + ' · ' + (e.now.title || '') + '</div>';
+      if (e.next && e.next.length) {
+        html += '<div class="epg-next"><b>Successivi:</b></div>';
+        e.next.forEach((n) => { html += '<div class="epg-item">' + fmtTime(n.start_time) + ' · ' + (n.title || '') + '</div>'; });
+      }
+      body.innerHTML = html;
+    }).catch(() => { body.textContent = 'Nessuna guida disponibile'; });
+  }
+
+  function loadAlts(channelKey) {
+    const box = document.getElementById('playerAlts');
+    if (!box) return;
+    Api.eventsCurrent(channelKey).then((d) => {
+      if (!d || !d.ok || !d.events || !d.events.length) { box.innerHTML = ''; return; }
+      let html = '';
+      d.events.forEach((ev) => {
+        if (!ev.channels || !ev.channels.length) return;
+        const nome = [ev.home, ev.away].filter(Boolean).join(' - ') || ev.league || 'Evento';
+        html += '<div class="alts-row"><span class="alts-ev">' + (ev.status === 'live' ? '🔴 ' : '') + nome + '</span>';
+        html += ev.channels.map((c) => {
+          const flag = c.country ? c.country.toUpperCase() : '';
+          return '<button class="alts-chip" data-alts="' + c.key + '" data-title="' + encodeURIComponent(c.name || '') + '">' + flag + ' ' + (c.name || c.key) + '</button>';
+        }).join('');
+        html += '</div>';
+      });
+      box.innerHTML = html;
+      box.querySelectorAll('[data-alts]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          open(btn.getAttribute('data-alts'), decodeURIComponent(btn.getAttribute('data-title') || ''));
+        });
+      });
+    }).catch(() => { box.innerHTML = ''; });
+  }
+
+  function close() {
+    if (hls) { try { hls.destroy(); } catch (e) {} hls = null; }
+    const ov = document.getElementById('playerOverlay');
+    if (ov) ov.remove();
+  }
+
+  function open(channelKey, title) {
+    close();
+    const ov = document.createElement('div');
+    ov.id = 'playerOverlay';
+    ov.className = 'overlay';
+    ov.innerHTML = `
+      <div class="player-box">
+        <div class="player-head"><b>${title || channelKey}</b>
+          <button id="playerClose" class="close">✕</button>
+        </div>
+        <video id="playerVideo" controls autoplay playsinline></video>
+        <div id="playerStatus" class="player-status">Caricamento...</div>
+        <div id="playerAlts" class="player-alts"></div>
+        <div id="playerEpg" class="player-epg"><div class="epg-title">Guida programma</div><div class="epg-body">Caricamento...</div></div>
+      </div>`;
+    document.body.appendChild(ov);
+    document.getElementById('playerClose').addEventListener('click', close);
+    ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
+
+    const video = document.getElementById('playerVideo');
+    const status = document.getElementById('playerStatus');
+    // audio attivo per default
+    video.muted = false;
+    video.volume = 1.0;
+
+    loadEpg(channelKey);
+    loadAlts(channelKey);
+    function startStream(attempt) {
+    Api.token(channelKey).then((t) => {
+      if (!t.ok) {
+        if (attempt < 1) { status.textContent = 'Errore, riprovo...'; setTimeout(() => startStream(attempt + 1), 2000); return; }
+        status.textContent = 'Errore: ' + (t.error || 'token'); return;
+      }
+      status.textContent = 'Avvio stream...';
+      if (window.Hls && Hls.isSupported()) {
+        hls = new Hls({
+          liveDurationInfinity: true,
+          manifestLoadingMaxRetry: 5,
+          manifestLoadingRetryDelay: 1000,
+          manifestLoadingMaxRetryTimeout: 15000,
+          levelLoadingMaxRetry: 5,
+          levelLoadingRetryDelay: 1000,
+          fragLoadingMaxRetry: 5,
+          fragLoadingRetryDelay: 1000,
+          fragLoadingMaxRetryTimeout: 20000,
+        });
+        hls.loadSource(t.url);
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          // forza la prima traccia audio (evita TS multi-programma video-only)
+          try { if (hls.audioTracks && hls.audioTracks.length) hls.audioTrack = hls.audioTracks[0].id; } catch (e) {}
+          video.muted = false; video.volume = 1.0;
+          video.play().catch(() => {
+            // autoplay bloccato dal browser: mostra pulsante per attivare audio
+            status.textContent = '▶ Clicca per attivare audio';
+            video.muted = true;
+            const un = () => { video.muted = false; video.volume = 1.0; video.play().catch(()=>{}); status.textContent = 'Streaming'; };
+            video.addEventListener('click', un, { once: true });
+            status.addEventListener('click', un, { once: true });
+          });
+          status.textContent = 'Streaming';
+        });
+        hls.on(Hls.Events.ERROR, (e, data) => {
+          if (data.fatal) { status.textContent = 'Errore stream: ' + data.type; hls.destroy(); hls = null; }
+        });
+      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        video.src = t.url;
+        video.play().catch(() => {});
+        status.textContent = 'Streaming';
+      } else {
+        status.textContent = 'HLS non supportato da questo browser';
+      }
+    }).catch((err) => { status.textContent = 'Errore: ' + err.message; });
+    }
+    startStream(0);
+  }
+
+  // Delegazione click: qualsiasi elemento [data-play]
+  document.addEventListener('click', (e) => {
+    const el = e.target.closest('[data-play]');
+    if (!el) return;
+    const key = el.getAttribute('data-play');
+    const title = decodeURIComponent(el.getAttribute('data-title') || '');
+    open(key, title);
+  });
+
+  window.Player = { open, close };
+})();
