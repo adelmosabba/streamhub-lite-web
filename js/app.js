@@ -1,6 +1,6 @@
 'use strict';
 // Controller: stato + binding. Carica eventi/canali/EPG e renderizza.
-const state = { view: 'events', search: '', onlyStream: false, sport: '', activeDay: '', epgCache: {}, epgChannels: null, epgTimer: null };
+const state = { view: 'events', search: '', sport: '', activeDay: '', epgCache: {}, epgChannels: null, epgTimer: null };
 
 const appEl = document.getElementById('app');
 const sportFilter = document.getElementById('sportFilter');
@@ -54,7 +54,7 @@ async function loadEventsView() {
 
   const params = { date: state.activeDay, limit: 4000, tz };
   if (state.search) params.search = state.search;
-  if (state.onlyStream) params.has_stream = '1';
+  params.has_stream = '1'; // sempre solo eventi con stream
   if (state.sport) params.sport = state.sport;
 
   const data = await Api.events(params);
@@ -205,10 +205,6 @@ document.getElementById('search').addEventListener('input', debounce(e => {
   if (state.view === 'events') refresh();
 }, 400));
 
-document.getElementById('onlyStream').addEventListener('change', e => {
-  state.onlyStream = e.target.checked;
-  if (state.view === 'events') refresh();
-});
 
 sportFilter.addEventListener('change', e => {
   state.sport = e.target.value;
