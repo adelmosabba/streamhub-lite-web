@@ -154,7 +154,7 @@ const Api = {
           .replace(/\{US_PRIVACY\}/g, '1Y-')
           .replace(/\{APP_DOMAIN\}/g, 'web')
           .replace(/\{APP_NAME\}/g, 'web');
-        return { ok: false, needExternal: true, url: u, name: c.name };
+        return { ok: true, method: 'native', url: u, name: c.name };
       }
     }
     return { ok: true, method: 'direct', url: c.url, name: c.name };

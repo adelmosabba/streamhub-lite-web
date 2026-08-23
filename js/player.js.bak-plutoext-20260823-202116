@@ -106,27 +106,25 @@
     Api.token(channelKey).then((t) => {
       if (mySession !== session) return;  // chiuso nel frattempo: NON avviare
       if (!t.ok) {
-        if (t.needExternal) {
-          // Canali Pluto: CORS blocca il fetch e Android non ha HLS nativo ->
-          // il player non puo integrarlo. Pulsante per il player esterno.
-          status.textContent = 'Questo canale richiede il player esterno (CORS)';
-          const btn = document.createElement('button');
-          btn.textContent = '📺 Apri in player esterno';
-          btn.style.cssText = 'margin-top:8px;background:#238636;color:#fff;border:0;border-radius:6px;padding:8px 16px;cursor:pointer;font-size:13px;';
-          btn.onclick = () => {
-            try { navigator.clipboard.writeText(t.url); } catch (e) {}
-            try { window.location.href = 'streamhub://open?url=' + encodeURIComponent(t.url); } catch (e) {}
-            status.textContent = 'Apertura player esterno... (URL copiato 📋)';
-          };
-          status.appendChild(btn);
-          return;
-        }
         if (attempt < 1) { status.textContent = 'Errore, riprovo...'; setTimeout(() => { if (mySession === session) startStream(attempt + 1); }, 2000); return; }
         status.textContent = 'Errore: ' + (t.error || 'token'); return;
       }
       if (mySession !== session) return;  // ri-verifica prima di attaccare hls
       status.textContent = 'Avvio stream...';
-      if (window.Hls && Hls.isSupported()) {
+      // FIX 23/08: per i canali Pluto il fetch CORS fallisce -> method native:
+      // usa il media element nativo (no CORS, funziona su Android/WebView/browser mobile).
+      if (t.method === 'native' && video.canPlayType('application/vnd.apple.mpegurl')) {
+        video.src = t.url;
+        video.muted = false; video.volume = 1.0;
+        video.play().catch(() => {
+          status.textContent = '▶ Clicca per attivare audio';
+          video.muted = true;
+          const un = () => { video.muted = false; video.volume = 1.0; video.play().catch(()=>{}); status.textContent = 'Streaming'; };
+          video.addEventListener('click', un, { once: true });
+          status.addEventListener('click', un, { once: true });
+        });
+        status.textContent = 'Streaming';
+      } else if (window.Hls && Hls.isSupported()) {
         hls = new Hls({
           liveDurationInfinity: true,
           manifestLoadingMaxRetry: 5,
@@ -180,7 +178,14 @@
             };
           }
           video.muted = false; video.volume = 1.0;
-          video.play().catch(() => { /* autoplay bloccato: l'utente preme play */ });
+          video.play().catch(() => {
+            // autoplay bloccato dal browser: mostra pulsante per attivare audio
+            status.textContent = '▶ Clicca per attivare audio';
+            video.muted = true;
+            const un = () => { video.muted = false; video.volume = 1.0; video.play().catch(()=>{}); status.textContent = 'Streaming'; };
+            video.addEventListener('click', un, { once: true });
+            status.addEventListener('click', un, { once: true });
+          });
           status.textContent = 'Streaming';
         });
         hls.on(Hls.Events.ERROR, (e, data) => {
