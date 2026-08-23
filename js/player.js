@@ -2,6 +2,7 @@
 // Player overlay: hls.js per gli stream HLS (method direct). Un solo player alla volta.
 (function () {
   let hls = null;
+  let session = 0;  // guardia anti-background: invalida fetch in corso alla chiusura
 
   function fmtTime(iso) {
     if (!iso) return '--:--';
@@ -51,6 +52,7 @@
   }
 
   function close() {
+    session++;  // invalida eventuali fetch/retry in corso
     if (hls) { try { hls.destroy(); } catch (e) {} hls = null; }
     const ov = document.getElementById('playerOverlay');
     if (ov) ov.remove();
@@ -58,6 +60,7 @@
 
   function open(channelKey, title) {
     close();
+    const mySession = ++session;
     const ov = document.createElement('div');
     ov.id = 'playerOverlay';
     ov.className = 'overlay';
@@ -85,10 +88,12 @@
     loadAlts(channelKey);
     function startStream(attempt) {
     Api.token(channelKey).then((t) => {
+      if (mySession !== session) return;  // chiuso nel frattempo: NON avviare
       if (!t.ok) {
-        if (attempt < 1) { status.textContent = 'Errore, riprovo...'; setTimeout(() => startStream(attempt + 1), 2000); return; }
+        if (attempt < 1) { status.textContent = 'Errore, riprovo...'; setTimeout(() => { if (mySession === session) startStream(attempt + 1); }, 2000); return; }
         status.textContent = 'Errore: ' + (t.error || 'token'); return;
       }
+      if (mySession !== session) return;  // ri-verifica prima di attaccare hls
       status.textContent = 'Avvio stream...';
       if (window.Hls && Hls.isSupported()) {
         hls = new Hls({
