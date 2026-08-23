@@ -106,9 +106,6 @@ function open(channelKey, title) {
       });
     });
     ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
-    // FIX 23/08: se l'app va in background (es. player esterno aperto),
-    // chiudi il player: al ritorno la lista e' pulita, niente overlay appeso.
-    document.addEventListener('visibilitychange', () => { if (document.hidden) close(); });
 
     const video = document.getElementById('playerVideo');
     const status = document.getElementById('playerStatus');
