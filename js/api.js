@@ -4,6 +4,27 @@
 const BEACON_URL = 'https://gist.githubusercontent.com/adelmosabba/de801ecad18027c1cc8ef1d551d00d5e/raw/beacon.json';
 const CACHE_TTL_MS = 4 * 3600 * 1000;
 
+// Durata media stimata per sport (minuti) per calcolare fine evento e stato live lato client.
+const SPORT_DUR_MIN = {
+  calcio:125, basket:135, tennis:150, motori:120, volley:105, rugby:110,
+  atletica:150, nuoto:150, golf:240, ciclismo:240, boxe:120, hockey:120,
+  baseball:180, darts:120, football:190, pallamano:105, futsal:105, floorball:105
+};
+function estDurationMin(sport) { return SPORT_DUR_MIN[sport] || 120; }
+
+// Stato evento calcolato CLIENT-side (il server aggiorna 1 volta/giorno).
+// live  = adesso dentro [start, start+durata)
+// past  = adesso >= start+durata
+// upcoming = adesso < start
+function clientStatus(e, nowMs) {
+  const st = new Date(e.start_time).getTime();
+  if (isNaN(st)) return 'upcoming';
+  const dur = (e.duration_min || estDurationMin(e.sport)) * 60000;
+  if (nowMs >= st + dur) return 'finished';
+  if (nowMs >= st) return 'live';
+  return 'upcoming';
+}
+
 const _state = { idx: null, loadedAt: 0 };
 
 async function loadIndex(force) {
@@ -30,9 +51,16 @@ function localDateStr(iso) {
 const Api = {
   async events(params) {
     const idx = await loadIndex();
-    let list = idx.events || [];
     const p = params || {};
+    const nowMs = Date.now();
+    let list = (idx.events || []).map(e => {
+      const status = clientStatus(e, nowMs);
+      const st = new Date(e.start_time).getTime();
+      const dur = (e.duration_min || estDurationMin(e.sport)) * 60000;
+      return { ...e, status, end_time: (isNaN(st) ? null : new Date(st + dur).toISOString()) };
+    });
     if (p.date) list = list.filter(e => localDateStr(e.start_time) === p.date);
+    if (p.hidePast !== false) list = list.filter(e => e.status !== 'finished');
     if (p.sport) list = list.filter(e => (e.sport || '') === p.sport);
     if (p.search) {
       const q = p.search.toLowerCase();

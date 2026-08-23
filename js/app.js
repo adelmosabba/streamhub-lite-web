@@ -1,9 +1,14 @@
 'use strict';
 // Controller: stato + binding. Carica eventi/canali/EPG e renderizza.
-const state = { view: 'events', search: '', sport: '', activeDay: '', epgCache: {}, epgChannels: null, epgTimer: null };
+const state = { view: 'events', search: '', sport: '', activeDay: '', epgCache: {}, epgChannels: null, epgTimer: null, eventsTimer: null, eventsParams: null, eventsSignature: '' };
 
 const appEl = document.getElementById('app');
 const sportFilter = document.getElementById('sportFilter');
+
+// Firma degli stati evento (client-side): cambia quando un evento diventa live o finisce.
+function eventsSignature(events) {
+  return (events || []).map(e => e.home + '|' + e.away + '|' + e.start_time + '|' + e.status).join(';');
+}
 
 function debounce(fn, ms) {
   let t;
@@ -57,7 +62,9 @@ async function loadEventsView() {
   params.has_stream = '1'; // sempre solo eventi con stream
   if (state.sport) params.sport = state.sport;
 
+  state.eventsParams = params;
   const data = await Api.events(params);
+  state.eventsSignature = eventsSignature(data.events);
   const tabs = Views.dayTabsHtml([
     { date: y, label: 'IERI ' + new Date(y + 'T00:00:00').toLocaleDateString('it-IT', { weekday: 'short', day: '2-digit', month: '2-digit' }) },
     { date: today, label: 'OGGI ' + new Date(today + 'T00:00:00').toLocaleDateString('it-IT', { weekday: 'short', day: '2-digit', month: '2-digit' }) },
@@ -161,6 +168,25 @@ function startNowTimer() {
   }, 60000);
 }
 
+// Timer client: il server aggiorna 1 volta/giorno, quindi il CLIENT gestisce la
+// visualizzazione del tempo: aggiorna badge LIVE e rimuove gli eventi finiti
+// quando lo stato cambia (senza rifetch: usa l'indice in cache).
+function startEventsTimer() {
+  if (state.eventsTimer) clearInterval(state.eventsTimer);
+  state.eventsTimer = setInterval(async () => {
+    if (state.view !== 'events' || !state.eventsParams) return;
+    try {
+      const data = await Api.events(state.eventsParams);
+      const sig = eventsSignature(data.events);
+      if (sig === state.eventsSignature) return;
+      const top = window.scrollY;
+      await LOADERS.events();
+      state.eventsSignature = eventsSignature(data.events);
+      window.scrollTo(0, top);
+    } catch (e) { /* riprova al tick successivo */ }
+  }, 60000);
+}
+
 async function loadEpg() {
   try {
     if (!state.epgChannels) {
@@ -211,5 +237,6 @@ sportFilter.addEventListener('change', e => {
   if (state.view === 'events') refresh();
 });
 
+startEventsTimer();
 loadSportOptions();
 refresh();

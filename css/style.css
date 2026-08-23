@@ -182,3 +182,11 @@ footer { text-align: center; color: #5a6280; padding: 24px; padding-bottom: calc
 .btn-apk { background: #238636; color: #fff; border: 0; padding: 8px 14px; border-radius: 8px; cursor: pointer; text-decoration: none; font-size: 14px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; }
 .btn-apk:hover { background: #2ea043; }
 @media (max-width: 640px) { .btn-apk { padding: 6px 10px; font-size: 12px; } }
+
+/* --- Client-side: live ora + card live --- */
+.live-now { margin-bottom: 14px; }
+.live-now-title { display:flex; align-items:center; gap:8px; font-weight:800; font-size:14px; color:#ef4444; text-transform:uppercase; letter-spacing:.6px; margin-bottom:8px; }
+.live-now-title .dot { width:10px; height:10px; border-radius:50%; background:#ef4444; animation:pulse 1.4s infinite; }
+@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.25; } }
+.card-live { border:1px solid #ef4444; box-shadow:0 0 12px rgba(239,68,68,.18); }
+.card-live .time { color:#ef4444; }

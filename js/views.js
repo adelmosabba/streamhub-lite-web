@@ -50,7 +50,8 @@ function sortSports(a, b) {
 
 function cardHtml(e) {
   const t = fmtTime(e.start_time);
-  const badge = e.status === 'live'
+  const live = e.status === 'live';
+  const badge = live
     ? '<span class="badge live">LIVE</span>'
     : (e.has_stream ? '<span class="badge">📺</span>' : '<span class="badge nostream">no stream</span>');
   const keys = (e.channel_keys && e.channel_keys.length) ? e.channel_keys : [];
@@ -64,7 +65,7 @@ function cardHtml(e) {
         return `<button class="ch-chip" data-play="${esc(k)}" data-title="${title}" title="${esc(nm)}">${i === 0 ? '▶ ' : ''}${esc(nm)}</button>`;
       }).join('') + '</div>'
     : '';
-  return `<div class="card" ${playAttr}>
+  return `<div class="card${live ? ' card-live' : ''}" ${playAttr}>
     <div class="time">${t}</div>
     <div class="info">
       <div class="teams">${esc(e.home || '')} <span style="color:#8b93b0">vs</span> ${esc(e.away || '')}</div>
@@ -87,9 +88,11 @@ function dayTabsHtml(days, activeDay) {
 
 function sportAccordionHtml(events) {
   if (!events.length) return '<div class="empty">Nessun evento</div>';
-  // sport -> league -> eventi
+  // Sezione LIVE ORA in cima (stato calcolato client-side), poi sport -> league -> eventi.
+  const live = events.filter(e => e.status === 'live').sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+  const rest = events.filter(e => e.status !== 'live');
   const sports = {};
-  for (const e of events) {
+  for (const e of rest) {
     const s = e.sport || 'altro';
     if (!sports[s]) sports[s] = {};
     const l = e.league || '—';
@@ -98,13 +101,18 @@ function sportAccordionHtml(events) {
   }
   const sportKeys = Object.keys(sports).sort(sortSports);
   let html = '';
+  if (live.length) {
+    html += '<div class="live-now"><div class="live-now-title"><span class="dot"></span> LIVE ORA <span class="cnt">' + live.length + '</span></div>';
+    for (const e of live) html += cardHtml(e);
+    html += '</div>';
+  }
   for (const sport of sportKeys) {
     const leagues = sports[sport];
     const totalSport = Object.values(leagues).reduce((n, arr) => n + arr.length, 0);
     html += `<details class="sport-group" open><summary><span class="sport-ico">${sportIcon(sport)}</span> ${esc(sport)} <span class="cnt">${totalSport}</span></summary>`;
     const leagueKeys = Object.keys(leagues).sort((a, b) => leagues[b].length - leagues[a].length || a.localeCompare(b));
     for (const league of leagueKeys) {
-      const list = leagues[league];
+      const list = leagues[league].sort((a, b) => (b.status === 'live' ? 1 : 0) - (a.status === 'live' ? 1 : 0) || new Date(a.start_time) - new Date(b.start_time));
       html += `<div class="league-title">${esc(league)} <span class="cnt">${list.length}</span></div>`;
       for (const e of list) html += cardHtml(e);
     }
