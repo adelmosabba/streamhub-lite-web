@@ -101,6 +101,14 @@
           fragLoadingMaxRetry: 5,
           fragLoadingRetryDelay: 1000,
           fragLoadingMaxRetryTimeout: 20000,
+          // FIX 23/08: live sync + buffer per evitare freeze in avvio
+          maxBufferLength: 90,
+          backBufferLength: 60,
+          liveSyncDurationCount: 6,
+          liveMaxLatencyDurationCount: 10,
+          lowLatencyMode: false,
+          manifestLoadingTimeOut: 15000,
+          fragLoadingTimeOut: 15000,
         });
         hls.loadSource(t.url);
         hls.attachMedia(video);
