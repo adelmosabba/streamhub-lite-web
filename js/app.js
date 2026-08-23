@@ -53,11 +53,14 @@ async function loadEventsView() {
   const today = todayStr();
   const y = addDays(today, -1);
   const tm = addDays(today, 1);
-  if (!state.activeDay || (state.activeDay !== y && state.activeDay !== today && state.activeDay !== tm)) {
+  if (!state.activeDay || (state.activeDay !== today && state.activeDay !== tm)) {
     state.activeDay = today;
   }
 
-  const params = { date: state.activeDay, limit: 4000, tz };
+  // OGGI = dagli eventi di ieri (live ancora in corso) fino a oggi; DOMANI = solo domani.
+  const params = state.activeDay === today
+    ? { since: y, fino: today, limit: 4000, tz }
+    : { date: state.activeDay, limit: 4000, tz };
   if (state.search) params.search = state.search;
   params.has_stream = '1'; // sempre solo eventi con stream
   if (state.sport) params.sport = state.sport;
@@ -66,7 +69,6 @@ async function loadEventsView() {
   const data = await Api.events(params);
   state.eventsSignature = eventsSignature(data.events);
   const tabs = Views.dayTabsHtml([
-    { date: y, label: 'IERI ' + new Date(y + 'T00:00:00').toLocaleDateString('it-IT', { weekday: 'short', day: '2-digit', month: '2-digit' }) },
     { date: today, label: 'OGGI ' + new Date(today + 'T00:00:00').toLocaleDateString('it-IT', { weekday: 'short', day: '2-digit', month: '2-digit' }) },
     { date: tm, label: 'DOMANI ' + new Date(tm + 'T00:00:00').toLocaleDateString('it-IT', { weekday: 'short', day: '2-digit', month: '2-digit' }) },
   ], state.activeDay);

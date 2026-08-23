@@ -60,6 +60,9 @@ const Api = {
       return { ...e, status, end_time: (isNaN(st) ? null : new Date(st + dur).toISOString()) };
     });
     if (p.date) list = list.filter(e => localDateStr(e.start_time) === p.date);
+    // since/fino: finestra date (per unire i live di ieri nella tab OGGI)
+    if (p.since) list = list.filter(e => localDateStr(e.start_time) >= p.since);
+    if (p.fino) list = list.filter(e => localDateStr(e.start_time) <= p.fino);
     if (p.hidePast !== false) list = list.filter(e => e.status !== 'finished');
     if (p.sport) list = list.filter(e => (e.sport || '') === p.sport);
     if (p.search) {
