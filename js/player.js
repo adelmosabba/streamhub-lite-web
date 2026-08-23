@@ -58,7 +58,20 @@
     if (ov) ov.remove();
   }
 
-  function open(channelKey, title) {
+  // APK: usa il bridge nativo se presente (niente redirect custom-scheme).
+// Browser: fallback custom scheme (nessun effetto) + URL gia copiato.
+function openExternal(url) {
+  try {
+    if (window.StreamHubBridge && window.StreamHubBridge.openExternal) {
+      window.StreamHubBridge.openExternal(url);
+      return true;
+    }
+  } catch (e) {}
+  try { window.location.href = "streamhub://open?url=" + encodeURIComponent(url); } catch (e) {}
+  return false;
+}
+
+function open(channelKey, title) {
     close();
     const mySession = ++session;
     const ov = document.createElement('div');
@@ -89,7 +102,7 @@
         try { navigator.clipboard.writeText(url); } catch (e) {}
         status.textContent = 'URL copiato 📋 · ' + (url.length > 55 ? url.slice(0, 52) + '...' : url);
         // APK: custom scheme gestito da MainActivity (apre VLC/MX). Browser: nessun effetto.
-        try { window.location.href = 'streamhub://open?url=' + encodeURIComponent(url); } catch (e) {}
+        try { openExternal(url); } catch (e) {}
       });
     });
     ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
@@ -115,7 +128,7 @@
           btn.style.cssText = 'margin-top:8px;background:#238636;color:#fff;border:0;border-radius:6px;padding:8px 16px;cursor:pointer;font-size:13px;';
           btn.onclick = () => {
             try { navigator.clipboard.writeText(t.url); } catch (e) {}
-            try { window.location.href = 'streamhub://open?url=' + encodeURIComponent(t.url); } catch (e) {}
+            try { openExternal(t.url); } catch (e) {}
             status.textContent = 'Apertura player esterno... (URL copiato 📋)';
           };
           status.appendChild(btn);
