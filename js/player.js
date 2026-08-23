@@ -106,11 +106,13 @@
           fragLoadingMaxRetry: 5,
           fragLoadingRetryDelay: 1000,
           fragLoadingMaxRetryTimeout: 20000,
-          // FIX 23/08: live sync + buffer per evitare freeze in avvio
-          maxBufferLength: 90,
-          backBufferLength: 60,
-          liveSyncDurationCount: 6,
-          liveMaxLatencyDurationCount: 10,
+          // FIX 23/08 17:20: finestra manifest 7nyaler = SOLO 5 segmenti (~15-20s).
+          // target > 5 segmenti -> hls.js aspetta il 6° che non esiste -> STALL.
+          // Allineato a 2 segmenti di sync, buffer max 30s.
+          maxBufferLength: 30,
+          backBufferLength: 15,
+          liveSyncDurationCount: 2,
+          liveMaxLatencyDurationCount: 5,
           lowLatencyMode: false,
           manifestLoadingTimeOut: 15000,
           fragLoadingTimeOut: 15000,
