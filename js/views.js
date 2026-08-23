@@ -88,11 +88,9 @@ function dayTabsHtml(days, activeDay) {
 
 function sportAccordionHtml(events) {
   if (!events.length) return '<div class="empty">Nessun evento</div>';
-  // Sezione LIVE ORA in cima (stato calcolato client-side), poi sport -> league -> eventi.
-  const live = events.filter(e => e.status === 'live').sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
-  const rest = events.filter(e => e.status !== 'live');
+  // Eventi raggruppati per sport -> league (i live restano nella loro categoria).
   const sports = {};
-  for (const e of rest) {
+  for (const e of events) {
     const s = e.sport || 'altro';
     if (!sports[s]) sports[s] = {};
     const l = e.league || '—';
@@ -101,11 +99,6 @@ function sportAccordionHtml(events) {
   }
   const sportKeys = Object.keys(sports).sort(sortSports);
   let html = '';
-  if (live.length) {
-    html += '<div class="live-now"><div class="live-now-title"><span class="dot"></span> LIVE ORA <span class="cnt">' + live.length + '</span></div>';
-    for (const e of live) html += cardHtml(e);
-    html += '</div>';
-  }
   for (const sport of sportKeys) {
     const leagues = sports[sport];
     const totalSport = Object.values(leagues).reduce((n, arr) => n + arr.length, 0);
