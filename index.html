@@ -14,12 +14,17 @@
 </header>
 
 <main>
+  <div class="tabs">
+    <button id="tabChannels" class="tab active">Canali</button>
+    <button id="tabEvents" class="tab">Eventi</button>
+  </div>
   <div id="filters" class="filters">
     <input id="search" type="search" placeholder="Cerca canale…">
     <select id="countryFilter"><option value="">Tutti i paesi</option></select>
     <select id="sportFilter"><option value="">Tutti gli sport</option></select>
   </div>
   <ul id="channelList" class="channel-list"></ul>
+  <ul id="eventsList" class="channel-list hidden"></ul>
 </main>
 
 <div id="playerOverlay" class="player-overlay hidden">
