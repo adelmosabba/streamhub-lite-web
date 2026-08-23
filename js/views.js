@@ -101,7 +101,7 @@ function sportAccordionHtml(events) {
   for (const sport of sportKeys) {
     const leagues = sports[sport];
     const totalSport = Object.values(leagues).reduce((n, arr) => n + arr.length, 0);
-    html += `<details class="sport-group"><summary><span class="sport-ico">${sportIcon(sport)}</span> ${esc(sport)} <span class="cnt">${totalSport}</span></summary>`;
+    html += `<details class="sport-group" open><summary><span class="sport-ico">${sportIcon(sport)}</span> ${esc(sport)} <span class="cnt">${totalSport}</span></summary>`;
     const leagueKeys = Object.keys(leagues).sort((a, b) => leagues[b].length - leagues[a].length || a.localeCompare(b));
     for (const league of leagueKeys) {
       const list = leagues[league];
@@ -220,7 +220,7 @@ const Views = {
     }
     let html = '';
     for (const [country, list] of Object.entries(byCountry)) {
-      html += `<details class="sport-group"><summary><span class="sport-ico">📺</span> ${country.toUpperCase()} <span class="cnt">${list.length}</span></summary><div class="grid">`;
+      html += `<details class="sport-group" open><summary><span class="sport-ico">📺</span> ${country.toUpperCase()} <span class="cnt">${list.length}</span></summary><div class="grid">`;
       for (const c of list) {
         html += `<div class="ch-card" data-play="${esc(c.key)}" data-title="${encodeURIComponent(c.name)}">
           <div class="name">${esc(c.name)}</div>
