@@ -113,12 +113,6 @@ const Api = {
       return { ok: true, events: list };
     } catch (e) { return { ok: true, events: [] }; }
   },
-  async rawUrl(channel) {
-    const idx = await loadIndex();
-    const c = (idx.channels || []).find(x => x.key === channel);
-    if (!c) return { ok: false, error: 'canale non trovato' };
-    return { ok: true, url: c.plutoUrl || c.url };
-  },
   async token(channel) {
     const idx = await loadIndex();
     const c = (idx.channels || []).find(x => x.key === channel);

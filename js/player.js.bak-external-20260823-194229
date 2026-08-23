@@ -67,7 +67,6 @@
     ov.innerHTML = `
       <div class="player-box">
         <div class="player-head"><b>${title || channelKey}</b>
-          <button id="playerExternal" class="close" title="Apri in player esterno (copia URL)">📺</button>
           <button id="playerClose" class="close">✕</button>
         </div>
         <video id="playerVideo" controls autoplay playsinline></video>
@@ -81,17 +80,6 @@
       </div>`;
     document.body.appendChild(ov);
     document.getElementById('playerClose').addEventListener('click', close);
-    document.getElementById('playerExternal').addEventListener('click', () => {
-      const src = hls && hls.url ? hls.url : null;
-      Api.rawUrl(channelKey).then((r) => {
-        const url = src || (r.ok ? r.url : null);
-        if (!url) { status.textContent = 'URL non disponibile per questo canale'; return; }
-        try { navigator.clipboard.writeText(url); } catch (e) {}
-        status.textContent = 'URL copiato 📋 · ' + (url.length > 55 ? url.slice(0, 52) + '...' : url);
-        // APK: custom scheme gestito da MainActivity (apre VLC/MX). Browser: nessun effetto.
-        try { window.location.href = 'streamhub://open?url=' + encodeURIComponent(url); } catch (e) {}
-      });
-    });
     ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
 
     const video = document.getElementById('playerVideo');
