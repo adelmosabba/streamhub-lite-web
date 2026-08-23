@@ -1,6 +1,6 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: system-ui, sans-serif; background: #0f1220; color: #e8eaf0; min-height: 100vh; min-height: 100dvh; }
-header { background: #171b2e; padding: 14px 20px; padding-top: calc(14px + env(safe-area-inset-top, 0px)); display: flex; flex-wrap: wrap; gap: 14px; align-items: center; position: sticky; top: 0; z-index: 10; }
+body { font-family: system-ui, sans-serif; background: #0f1220; color: #e8eaf0; min-height: 100vh; }
+header { background: #171b2e; padding: 14px 20px; display: flex; flex-wrap: wrap; gap: 14px; align-items: center; position: sticky; top: 0; z-index: 10; }
 h1 { font-size: 20px; }
 nav { display: flex; gap: 6px; }
 nav button { background: #232a45; color: #e8eaf0; border: 0; padding: 8px 14px; border-radius: 8px; cursor: pointer; }
@@ -20,7 +20,7 @@ main { max-width: 1100px; margin: 20px auto; padding: 0 16px; }
 .badge.soon { background: #f59e0b; color: #0f1220; }
 .badge.nostream { background: #2a3150; color: #8b93b0; }
 .group-title { margin: 22px 0 10px; font-size: 15px; color: #93c5fd; text-transform: uppercase; letter-spacing: .5px; }
-footer { text-align: center; color: #5a6280; padding: 24px; padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)); font-size: 13px; }
+footer { text-align: center; color: #5a6280; padding: 24px; font-size: 13px; }
 .empty { text-align: center; color: #8b93b0; padding: 40px; }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
 .ch-card { background: #1a1f35; border-radius: 12px; padding: 12px; }
@@ -31,7 +31,7 @@ footer { text-align: center; color: #5a6280; padding: 24px; padding-bottom: calc
 .epg-row .replay { color: #f59e0b; font-size: 12px; }
 
 /* Player overlay */
-.overlay { position: fixed; inset: 0; background: rgba(0,0,0,.82); padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,.82); display: flex; align-items: center; justify-content: center; z-index: 1000; }
 .player-box { width: min(960px, 94vw); background: #141824; border-radius: 12px; padding: 14px; box-shadow: 0 10px 40px rgba(0,0,0,.6); }
 .player-head { display: flex; justify-content: space-between; align-items: center; color: #e6e9f2; margin-bottom: 10px; }
 .close { background: #2a3040; color: #fff; border: 0; border-radius: 6px; padding: 4px 10px; cursor: pointer; }
