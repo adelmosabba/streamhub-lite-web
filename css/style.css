@@ -178,3 +178,7 @@ footer { text-align: center; color: #5a6280; padding: 24px; font-size: 13px; }
   z-index: 20; pointer-events: none;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+.btn-apk { background: #238636; color: #fff; border: 0; padding: 8px 14px; border-radius: 8px; cursor: pointer; text-decoration: none; font-size: 14px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; }
+.btn-apk:hover { background: #2ea043; }
+@media (max-width: 640px) { .btn-apk { padding: 6px 10px; font-size: 12px; } }
