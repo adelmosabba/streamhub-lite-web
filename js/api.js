@@ -10,11 +10,11 @@ async function loadIndex(force) {
   if (_state.idx && !force && Date.now() - _state.loadedAt < CACHE_TTL_MS) return _state.idx;
   let indexUrl = localStorage.getItem('shl.indexUrl') || '';
   try {
-    const b = await (await fetch(BEACON_URL, { cache: 'no-cache' })).json();
+    const b = await (await fetch(BEACON_URL + '?ts=' + Date.now(), { cache: 'no-cache' })).json();
     if (b && b.index) { indexUrl = b.index; localStorage.setItem('shl.indexUrl', indexUrl); }
   } catch (e) { /* fallback su cache locale */ }
   if (!indexUrl) throw new Error('beacon irraggiungibile');
-  const res = await fetch(indexUrl, { cache: 'no-cache' });
+  const res = await fetch(indexUrl + (indexUrl.includes('?') ? '&' : '?') + 'ts=' + Date.now(), { cache: 'no-cache' });
   if (!res.ok) throw new Error('HTTP ' + res.status + ' index');
   _state.idx = await res.json();
   _state.loadedAt = Date.now();
