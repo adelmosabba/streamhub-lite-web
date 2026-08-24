@@ -213,16 +213,29 @@ const Views = {
   channels(channels) {
     channels = (channels || []).filter(c => c.enabled !== 0);
     if (!channels.length) return '<div class="empty">Nessun canale</div>';
+    const normal = channels.filter(c => !c.experimental);
+    const experimental = channels.filter(c => c.experimental);
+    let html = '';
     const byCountry = {};
-    for (const c of channels) {
+    for (const c of normal) {
       const k = c.country || '?';
       if (!byCountry[k]) byCountry[k] = [];
       byCountry[k].push(c);
     }
-    let html = '';
     for (const [country, list] of Object.entries(byCountry)) {
       html += `<details class="sport-group" open><summary><span class="sport-ico">📺</span> ${country.toUpperCase()} <span class="cnt">${list.length}</span></summary><div class="grid">`;
       for (const c of list) {
+        html += `<div class="ch-card" data-play="${esc(c.key)}" data-title="${encodeURIComponent(c.name)}">
+          <div class="name">${esc(c.name)}</div>
+          <div class="country">${esc(c.country)} · ${esc(c.sport || '')}${c.epg_id ? ' · EPG' : ''}</div>
+          <div class="meta" style="font-size:12px;color:#8b93b0">▶ avvia player</div>
+        </div>`;
+      }
+      html += '</div></details>';
+    }
+    if (experimental.length) {
+      html += `<details class="sport-group" open><summary><span class="sport-ico">🔬</span> SPERIMENTALI <span class="cnt">${experimental.length}</span></summary><div class="grid">`;
+      for (const c of experimental) {
         html += `<div class="ch-card" data-play="${esc(c.key)}" data-title="${encodeURIComponent(c.name)}">
           <div class="name">${esc(c.name)}</div>
           <div class="country">${esc(c.country)} · ${esc(c.sport || '')}${c.epg_id ? ' · EPG' : ''}</div>
