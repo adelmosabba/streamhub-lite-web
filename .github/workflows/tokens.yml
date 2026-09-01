@@ -1,0 +1,33 @@
+name: token-keeper
+
+on:
+  schedule:
+    - cron: '*/7 * * * *'   # ogni 7 minuti (token ARK durano ~13 min)
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  keep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout branch tokens
+        uses: actions/checkout@v4
+        with:
+          ref: tokens
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Run keeper
+        run: node scripts/token-keeper.mjs tokens.json
+      - name: Commit and push
+        run: |
+          git config user.name "streamhub-keeper[bot]"
+          git config user.email "streamhub-keeper[bot]@users.noreply.github.com"
+          git add tokens.json
+          if git diff --cached --quiet; then echo "no changes"; exit 0; fi
+          git commit -m "tokens refresh $(date -u +%Y%m%d-%H%M%S)"
+          git push origin tokens

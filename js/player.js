@@ -4,6 +4,32 @@
   let hls = null;
   let session = 0;  // guardia anti-background: invalida fetch in corso alla chiusura
 
+  let refreshTimer = null;  // timer rinnovo token ARK (~10 min, rinnova 30s prima della scadenza)
+
+  // Opzioni hls.js: allineate alla finestra manifest 7nyaler (5 segmenti).
+  const HLS_OPTS = {
+    liveDurationInfinity: true,
+    manifestLoadingMaxRetry: 5,
+    manifestLoadingRetryDelay: 1000,
+    manifestLoadingMaxRetryTimeout: 15000,
+    levelLoadingMaxRetry: 5,
+    levelLoadingRetryDelay: 1000,
+    fragLoadingMaxRetry: 5,
+    fragLoadingRetryDelay: 1000,
+    fragLoadingMaxRetryTimeout: 20000,
+    maxBufferLength: 30,
+    backBufferLength: 15,
+    liveSyncDurationCount: 2,
+    liveMaxLatencyDurationCount: 5,
+    lowLatencyMode: false,
+    manifestLoadingTimeOut: 15000,
+    fragLoadingTimeOut: 15000,
+    abrBandWidthFactor: 0.5,
+    abrBandWidthUpFactor: 0.5,
+    abrEwmaDefaultEstimate: 500000,
+    abrMaxWithRealBitrate: true
+  };
+
   function fmtTime(iso) {
     if (!iso) return '--:--';
     const d = new Date(iso);
@@ -54,6 +80,7 @@
   function close() {
     session++;  // invalida eventuali fetch/retry in corso
     if (hls) { try { hls.destroy(); } catch (e) {} hls = null; }
+    if (refreshTimer) { clearTimeout(refreshTimer); refreshTimer = null; }
     const ov = document.getElementById('playerOverlay');
     if (ov) ov.remove();
   }
@@ -118,63 +145,33 @@ function open(channelKey, title) {
 
     loadEpg(channelKey);
     loadAlts(channelKey);
-    function startStream(attempt) {
-    Api.token(channelKey).then((t) => {
-      if (mySession !== session) return;  // chiuso nel frattempo: NON avviare
-      if (!t.ok) {
-        if (t.needExternal) {
-          // Canali Pluto: CORS blocca il fetch e Android non ha HLS nativo ->
-          // il player non puo integrarlo. Pulsante per il player esterno.
-          status.textContent = 'Questo canale richiede il player esterno (CORS)';
-          const btn = document.createElement('button');
-          btn.textContent = '📺 Apri in player esterno';
-          btn.style.cssText = 'margin-top:8px;background:#238636;color:#fff;border:0;border-radius:6px;padding:8px 16px;cursor:pointer;font-size:13px;';
-          btn.onclick = () => {
-            try { navigator.clipboard.writeText(t.url); } catch (e) {}
-            try { openExternal(t.url); } catch (e) {}
-            status.textContent = 'Apertura player esterno... (URL copiato 📋)';
-          };
-          status.appendChild(btn);
-          return;
-        }
-        if (attempt < 1) { status.textContent = 'Errore, riprovo...'; setTimeout(() => { if (mySession === session) startStream(attempt + 1); }, 2000); return; }
-        status.textContent = 'Errore: ' + (t.error || 'token'); return;
-      }
-      if (mySession !== session) return;  // ri-verifica prima di attaccare hls
-      status.textContent = 'Avvio stream...';
+
+    // Avvia il player con URL (eventualmente firmato) e pianifica il rinnovo
+    // del token ARK ~30s prima della scadenza (visione continua).
+    function playUrl(url, refreshIn, exp) {
+      if (mySession !== session) return;
+      if (hls) { try { hls.destroy(); } catch (e) {} hls = null; }
+      if (refreshTimer) { clearTimeout(refreshTimer); refreshTimer = null; }
       if (window.Hls && Hls.isSupported()) {
-        hls = new Hls({
-          liveDurationInfinity: true,
-          manifestLoadingMaxRetry: 5,
-          manifestLoadingRetryDelay: 1000,
-          manifestLoadingMaxRetryTimeout: 15000,
-          levelLoadingMaxRetry: 5,
-          levelLoadingRetryDelay: 1000,
-          fragLoadingMaxRetry: 5,
-          fragLoadingRetryDelay: 1000,
-          fragLoadingMaxRetryTimeout: 20000,
-          // FIX 23/08 17:20: finestra manifest 7nyaler = SOLO 5 segmenti (~15-20s).
-          // target > 5 segmenti -> hls.js aspetta il 6° che non esiste -> STALL.
-          // Allineato a 2 segmenti di sync, buffer max 30s.
-          maxBufferLength: 30,
-          backBufferLength: 15,
-          liveSyncDurationCount: 2,
-          liveMaxLatencyDurationCount: 5,
-          lowLatencyMode: false,
-          manifestLoadingTimeOut: 15000,
-          fragLoadingTimeOut: 15000,
-          // ABR prudente: parte basso e sale se la rete regge (aiuta connessioni lente)
-          abrBandWidthFactor: 0.5,
-          abrBandWidthUpFactor: 0.5,
-          abrEwmaDefaultEstimate: 500000,
-          abrMaxWithRealBitrate: true,
-        });
-        hls.loadSource(t.url);
+        const arkExp = Number(exp) || 0;
+        const opts = Object.assign({}, HLS_OPTS);
+        if (arkExp) {
+          // Il CDN emette i segmenti con '&exp=' VUOTO: dal nostro dominio
+          // (github.io) verrebbero 403. Riscriviamo l'exp dei segmenti col
+          // valore pieno preso dal token (il manifest invece resta solo ?token=).
+          opts.fetchSetup = (ctx, init) => {
+            if (ctx && ctx.url && ctx.url.indexOf('&exp=') !== -1 && !ctx.url.match(/&exp=[^&]/)) {
+              ctx.url = ctx.url.replace('&exp=', '&exp=' + arkExp);
+            }
+            return init;
+          };
+        }
+        hls = new Hls(opts);
+        hls.loadSource(url);
         hls.attachMedia(video);
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
           // forza la prima traccia audio (evita TS multi-programma video-only)
           try { if (hls.audioTracks && hls.audioTracks.length) hls.audioTrack = hls.audioTracks[0].id; } catch (e) {}
-          // Selettore qualità: visibile SOLO se il canale ha più livelli (Amagi/Streamup/Infomaniak ecc.)
           const qWrap = document.getElementById('playerQWrap');
           const qSel = document.getElementById('playerQuality');
           if (qSel) {
@@ -203,12 +200,55 @@ function open(channelKey, title) {
           if (data.fatal) { status.textContent = 'Errore stream: ' + data.type; hls.destroy(); hls = null; }
         });
       } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-        video.src = t.url;
+        video.src = url;
         video.play().catch(() => {});
         status.textContent = 'Streaming';
       } else {
         status.textContent = 'HLS non supportato da questo browser';
+        return;
       }
+      if (refreshIn > 0) {
+        const delayMs = Math.max((refreshIn - 30) * 1000, 15000);
+        refreshTimer = setTimeout(async () => {
+          if (mySession !== session) return;
+          try {
+            const t2 = await Api.token(channelKey);
+            if (mySession !== session) return;
+            if (t2.ok && t2.url) { status.textContent = 'Rinnovo firma...'; playUrl(t2.url, t2.refresh_in, t2.exp); }
+          } catch (e) {
+            status.textContent = 'Rinnovo firma fallito, riprovo tra 60s';
+            if (mySession === session) refreshTimer = setTimeout(() => playUrl(url, refreshIn, exp), 60000);
+          }
+        }, delayMs);
+      }
+    }
+
+    function startStream(attempt) {
+    Api.token(channelKey).then((t) => {
+      if (mySession !== session) return;  // chiuso nel frattempo: NON avviare
+      if (!t.ok) {
+        if (t.needExternal) {
+          // Canali Pluto: CORS blocca il fetch e Android non ha HLS nativo ->
+          // il player non puo integrarlo. Pulsante per il player esterno.
+          status.textContent = 'Questo canale richiede il player esterno (CORS)';
+          const btn = document.createElement('button');
+          btn.textContent = '📺 Apri in player esterno';
+          btn.style.cssText = 'margin-top:8px;background:#238636;color:#fff;border:0;border-radius:6px;padding:8px 16px;cursor:pointer;font-size:13px;';
+          btn.onclick = () => {
+            try { navigator.clipboard.writeText(t.url); } catch (e) {}
+            try { openExternal(t.url); } catch (e) {}
+            status.textContent = 'Apertura player esterno... (URL copiato 📋)';
+          };
+          status.appendChild(btn);
+          return;
+        }
+        if (attempt < 1) { status.textContent = 'Errore, riprovo...'; setTimeout(() => { if (mySession === session) startStream(attempt + 1); }, 2000); return; }
+        status.textContent = 'Errore: ' + (t.error || 'token'); return;
+      }
+      if (mySession !== session) return;  // ri-verifica prima di attaccare hls
+      status.textContent = 'Avvio stream...';
+      playUrl(t.url, t.refresh_in, t.exp);
+
     }).catch((err) => { status.textContent = 'Errore: ' + err.message; });
     }
     startStream(0);

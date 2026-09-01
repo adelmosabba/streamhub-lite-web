@@ -4,6 +4,27 @@
 const BEACON_URL = 'https://gist.githubusercontent.com/adelmosabba/de801ecad18027c1cc8ef1d551d00d5e/raw/beacon.json';
 const CACHE_TTL_MS = 4 * 3600 * 1000;
 
+// ---- Token ARK (streamhostingcdn.top) ----
+// tokens.json e' pubblicato dal keeper GitHub Actions sul branch "tokens".
+// Il client legge SOLO il file statico (CORS ok su raw.githubusercontent).
+const TOKENS_URL = 'https://raw.githubusercontent.com/adelmosabba/streamhub-lite-web/tokens/tokens.json';
+const ARK_RE = /streamhostingcdn\.top\/stream\/(\d+)\//;
+const _arkCache = new Map();      // channel -> { url, exp, refresh_in }
+const _tokensState = { data: null, loadedAt: 0 };
+
+async function loadArkTokens(force) {
+  const now = Date.now();
+  if (_tokensState.data && !force && now - _tokensState.loadedAt < 120000) return _tokensState.data;
+  try {
+    const r = await fetch(TOKENS_URL + '?ts=' + now, { cache: 'no-cache' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    _tokensState.data = await r.json();
+    _tokensState.loadedAt = now;
+  } catch (e) { /* usa cache vecchia se presente */ }
+  return _tokensState.data;
+}
+
+
 // Durata media stimata per sport (minuti) per calcolare fine evento e stato live lato client.
 const SPORT_DUR_MIN = {
   calcio:125, basket:135, tennis:150, motori:120, volley:105, rugby:110,
@@ -148,12 +169,30 @@ const Api = {
     const idx = await loadIndex();
     const c = (idx.channels || []).find(x => x.key === channel);
     if (!c) return { ok: false, error: 'canale non trovato' };
+    if ((c.url || '').match(ARK_RE)) return Api.token(channel); // ark: serve URL firmato anche per player esterno
     return { ok: true, url: c.plutoUrl || c.url };
   },
   async token(channel) {
     const idx = await loadIndex();
     const c = (idx.channels || []).find(x => x.key === channel);
     if (!c) return { ok: false, error: 'canale non trovato' };
+    // Canali ARK (streamhostingcdn): URL firmato con token dal keeper.
+    const arkId = (c.url || '').match(ARK_RE);
+    if (arkId) {
+      const nowS = Math.floor(Date.now() / 1000);
+      const hit = _arkCache.get(channel);
+      if (hit && hit.exp > nowS + 90) {
+        return { ok: true, method: 'direct', url: hit.url, name: c.name, refresh_in: hit.refresh_in, exp: hit.exp };
+      }
+      const st = await loadArkTokens();
+      const rec = st && st.tokens && st.tokens[arkId[1]];
+      if (rec && rec.token && rec.exp) {
+        const url = c.url + '?token=' + encodeURIComponent(rec.token); // NIENTE &exp= nel manifest: il CDN lo rifiuta (404)
+        _arkCache.set(channel, { url, exp: Number(rec.exp), refresh_in: Number(rec.refresh_in) || 300 });
+        return { ok: true, method: 'direct', url, name: c.name, refresh_in: Number(rec.refresh_in) || 300, exp: Number(rec.exp) };
+      }
+      return { ok: false, error: 'token non disponibile (keeper)', url: c.url };
+    }
     if (c.method === 'pluto') {
       try {
         const r = await fetch(c.plutoUrl || c.url, { redirect: 'follow', mode: 'cors' });
