@@ -17,7 +17,7 @@ const PLAYER_REFERER = 'https://www.partite.cc/';
 const PANEL_URL = 'https://panel.streamhostingcdn.top/api/auth/get-stream-token';
 const PANEL_ORIGIN = 'https://prohostmedia.top';
 const OUT_FILE = process.argv[2] || 'tokens.json';
-const PAUSE_MS = 2500;
+const PAUSE_MS = process.env.PAUSE_MS ? Number(process.env.PAUSE_MS) : 2500;
 const MAX = process.env.ARK_MAX ? Number(process.env.ARK_MAX) : Infinity;
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
