@@ -8,6 +8,8 @@ const CACHE_TTL_MS = 4 * 3600 * 1000;
 // tokens.json e' pubblicato dal keeper GitHub Actions sul branch "tokens".
 // Il client legge SOLO il file statico (CORS ok su raw.githubusercontent).
 const TOKENS_URL = 'https://raw.githubusercontent.com/adelmosabba/streamhub-lite-web/tokens/tokens.json';
+// Worker Cloudflare: firma token ARK on-demand (PRIMARIO). Fallback: tokens.json del keeper.
+const TOKEN_WORKER = 'https://streamhub-token.adelmosabbatini.workers.dev';
 const ARK_RE = /streamhostingcdn\.top\/stream\/(\d+)\//;
 const _arkCache = new Map();      // channel -> { url, exp, refresh_in }
 const _tokensState = { data: null, loadedAt: 0 };
@@ -184,14 +186,27 @@ const Api = {
       if (hit && hit.exp > nowS + 90) {
         return { ok: true, method: 'direct', url: hit.url, name: c.name, refresh_in: hit.refresh_in, exp: hit.exp };
       }
-      const st = await loadArkTokens();
-      const rec = st && st.tokens && st.tokens[arkId[1]];
-      if (rec && rec.token && rec.exp) {
-        const url = c.url + '?token=' + encodeURIComponent(rec.token) + '&exp=' + encodeURIComponent(rec.exp);
-        _arkCache.set(channel, { url, exp: Number(rec.exp), refresh_in: Number(rec.refresh_in) || 300 });
-        return { ok: true, method: 'direct', url, name: c.name, refresh_in: Number(rec.refresh_in) || 300, exp: Number(rec.exp) };
+      const fallbackKeeper = async (errMsg) => {
+        const st = await loadArkTokens();
+        const rec = st && st.tokens && st.tokens[arkId[1]];
+        if (rec && rec.token && rec.exp) {
+          const url = c.url + '?token=' + encodeURIComponent(rec.token) + '&exp=' + encodeURIComponent(rec.exp);
+          _arkCache.set(channel, { url, exp: Number(rec.exp), refresh_in: Number(rec.refresh_in) || 300 });
+          return { ok: true, method: 'direct', url, name: c.name, refresh_in: Number(rec.refresh_in) || 300, exp: Number(rec.exp) };
+        }
+        return { ok: false, error: errMsg + '; nessun token keeper', url: c.url };
+      };
+      try {
+        const res = await fetch(TOKEN_WORKER + '/token?stream_id=' + encodeURIComponent(arkId[1]), { cache: 'no-store' });
+        const d = await res.json();
+        if (d.ok && d.url) {
+          _arkCache.set(channel, { url: d.url, exp: Number(d.exp), refresh_in: Number(d.refresh_in) || 300 });
+          return { ok: true, method: 'direct', url: d.url, name: c.name, refresh_in: Number(d.refresh_in) || 300, exp: Number(d.exp) };
+        }
+        return await fallbackKeeper('worker: ' + (d.error || 'errore'));
+      } catch (e) {
+        return await fallbackKeeper('worker irraggiungibile: ' + e.message);
       }
-      return { ok: false, error: 'token non disponibile (keeper)', url: c.url };
     }
     if (c.method === 'pluto') {
       try {

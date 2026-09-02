@@ -22,6 +22,14 @@ const MAX = process.env.ARK_MAX ? Number(process.env.ARK_MAX) : Infinity;
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
+async function fetchT(url, opts = {}, ms = 20000) {
+  const c = new AbortController();
+  const t = setTimeout(() => c.abort(), ms);
+  try {
+    return await fetch(url, { ...opts, signal: c.signal });
+  } finally { clearTimeout(t); }
+}
+
 function decodeJwtExp(jwt) {
   try {
     const part = jwt.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
@@ -31,8 +39,8 @@ function decodeJwtExp(jwt) {
 }
 
 async function getIndex() {
-  const b = await (await fetch(BEACON_URL + '?ts=' + Date.now(), { cache: 'no-store' })).json();
-  const idx = await (await fetch(b.index, { cache: 'no-store' })).json();
+  const b = await (await fetchT(BEACON_URL + '?ts=' + Date.now(), { cache: 'no-store' })).json();
+  const idx = await (await fetchT(b.index, { cache: 'no-store' })).json();
   const ark = [];
   for (const c of (idx.channels || [])) {
     const m = (c.url || '').match(/streamhostingcdn\.top\/stream\/(\d+)\//);
@@ -44,7 +52,7 @@ async function getIndex() {
 async function getProof(state) {
   const now = Math.floor(Date.now() / 1000);
   if (state.proof && state.proof.exp && state.proof.exp > now + 300) return state.proof.value;
-  const r = await fetch(PLAYER_URL, { headers: { 'User-Agent': UA, 'Referer': PLAYER_REFERER } });
+  const r = await fetchT(PLAYER_URL, { headers: { 'User-Agent': UA, 'Referer': PLAYER_REFERER } });
   if (!r.ok) throw new Error('player HTTP ' + r.status);
   const html = await r.text();
   const m = html.match(/"parent_proof":"([^"]+)"/);
@@ -54,7 +62,7 @@ async function getProof(state) {
 }
 
 async function fetchToken(id, proof) {
-  const r = await fetch(PANEL_URL, {
+  const r = await fetchT(PANEL_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -96,6 +104,7 @@ async function main() {
       }
       state.tokens[ch.id] = { ...t, at: now };
       refreshed++;
+      if (refreshed % 10 === 0 || refreshed === ark.length) console.log('progresso: ' + refreshed + '/' + ark.length + ' (ultimo id=' + ch.id + ')');
     } catch (e) {
       console.error('ERR ' + ch.id + ': ' + e.message);
       failed.push(ch.id);
