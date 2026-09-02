@@ -187,7 +187,7 @@ const Api = {
       const st = await loadArkTokens();
       const rec = st && st.tokens && st.tokens[arkId[1]];
       if (rec && rec.token && rec.exp) {
-        const url = c.url + '?token=' + encodeURIComponent(rec.token); // NIENTE &exp= nel manifest: il CDN lo rifiuta (404)
+        const url = c.url + '?token=' + encodeURIComponent(rec.token) + '&exp=' + encodeURIComponent(rec.exp);
         _arkCache.set(channel, { url, exp: Number(rec.exp), refresh_in: Number(rec.refresh_in) || 300 });
         return { ok: true, method: 'direct', url, name: c.name, refresh_in: Number(rec.refresh_in) || 300, exp: Number(rec.exp) };
       }
