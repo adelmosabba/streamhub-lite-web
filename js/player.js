@@ -78,6 +78,7 @@
   }
 
   function close() {
+    if (window.Presence) Presence.stop();   // canale chiuso: esci dal conteggio per-canale
     session++;  // invalida eventuali fetch/retry in corso
     if (hls) { try { hls.destroy(); } catch (e) {} hls = null; }
     if (refreshTimer) { clearTimeout(refreshTimer); refreshTimer = null; }
@@ -145,6 +146,7 @@ function open(channelKey, title) {
 
     loadEpg(channelKey);
     loadAlts(channelKey);
+    if (window.Presence) Presence.start(channelKey);   // canale in riproduzione: segnala a presence
 
     // Avvia il player con URL (eventualmente firmato) e pianifica il rinnovo
     // del token ARK ~30s prima della scadenza (visione continua).

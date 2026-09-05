@@ -1,5 +1,5 @@
 /* EventHub Lite - Service Worker: network-first con fallback cache (statici) */
-const CACHE = 'eventhub-v2';
+const CACHE = 'eventhub-v3';
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (e) => e.waitUntil(clients.claim()));
 self.addEventListener('fetch', (e) => {
