@@ -1,16 +1,24 @@
-// streamhub-token — Cloudflare Worker
-// Firma gli stream ARK (7nyaler.streamhostingcdn.top) per StreamHub LITE.
-// Endpoint: GET /token?stream_id=N -> { ok:true, url, exp, refresh_in }
+// streamhub-token — Cloudflare Worker (service-worker syntax, versione TOKEN-ONLY per dashboard)
+// ATTENZIONE: il worker in produzione è MODULE (worker-streamhub-token.js) con PresenceDO + /presence.
+// Questa copia serve solo per incollare su dashboard una versione senza Durable Objects.
+// Endpoint: GET /token?stream_id=N -> { ok:true, url, exp, refresh_in, edge }
+// v2: discovery dinamica edge (p6/p5/7nyaler/1nyaler) invece di EDGE fisso.
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
 const PLAYER_URL = 'https://prohostmedia.top/embed/player?stream=1';
 const PLAYER_REFERER = 'https://www.partite.cc/';
 const PANEL_URL = 'https://panel.streamhostingcdn.top/api/auth/get-stream-token';
 const PANEL_ORIGIN = 'https://prohostmedia.top';
-const EDGE = 'https://7nyaler.streamhostingcdn.top';
+const EDGES = [
+  'https://p6.streamhostingcdn.top',
+  'https://p5.streamhostingcdn.top',
+  'https://7nyaler.streamhostingcdn.top',
+  'https://1nyaler.streamhostingcdn.top',
+];
 
-let proofCache = null;             // { value, exp }
-const tokenCache = new Map();      // id -> { token, exp, refresh_in }
-const inflight = new Map();        // id -> Promise
+let proofCache = null;
+const tokenCache = new Map();
+const inflight = new Map();
+const edgeCache = new Map();
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -88,30 +96,57 @@ async function getToken(id) {
   try { return await task; } finally { inflight.delete(id); }
 }
 
-addEventListener("fetch", (event) => {
+async function probeEdge(edge, id, token, exp) {
+  const u = edge + '/stream/' + id + '/index.m3u8?token=' + encodeURIComponent(token) + '&exp=' + exp;
+  try {
+    const res = await fetch(u, {
+      headers: { 'User-Agent': UA, Referer: PLAYER_REFERER },
+      redirect: 'follow',
+    });
+    let finalEdge = edge;
+    try { finalEdge = new URL(res.url).origin; } catch {}
+    return { edge: finalEdge, status: res.status };
+  } catch (e) {
+    return { edge, status: 0, error: String(e) };
+  }
+}
+
+async function findEdge(id, token, exp) {
+  const now = Date.now();
+  const cached = edgeCache.get(id);
+  if (cached && now - cached.at < 15 * 60 * 1000) return cached.edge;
+  const results = await Promise.all(EDGES.map((edge) => probeEdge(edge, id, token, exp)));
+  const pick = results.find((r) => r.status === 200);
+  const chosen = (pick && pick.edge) || EDGES[0];
+  edgeCache.set(id, { edge: chosen, at: now });
+  return chosen;
+}
+
+addEventListener('fetch', (event) => {
   event.respondWith(handleRequest(event.request));
 });
 
 async function handleRequest(request) {
-    const url = new URL(request.url);
-    if (request.method === 'OPTIONS') {
-      return new Response(null, {
-        status: 204,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, OPTIONS',
-          'Access-Control-Allow-Headers': '*',
-        },
-      });
-    }
-    if (url.pathname !== '/token') return json({ ok: false, error: 'not_found' }, 404);
-    const id = String(url.searchParams.get('stream_id') || '');
-    if (!/^\d+$/.test(id)) return json({ ok: false, error: 'bad_stream_id' }, 400);
-    try {
-      const t = await getToken(id);
-      const streamUrl = EDGE + '/stream/' + id + '/index.m3u8?token=' + encodeURIComponent(t.token) + '&exp=' + t.exp;
-      return json({ ok: true, url: streamUrl, exp: t.exp, refresh_in: t.refresh_in, stream_id: id });
-    } catch (e) {
-      return json({ ok: false, error: e.message });
-    }
+  const url = new URL(request.url);
+  if (request.method === 'OPTIONS') {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, OPTIONS',
+        'Access-Control-Allow-Headers': '*',
+      },
+    });
+  }
+  if (url.pathname !== '/token') return json({ ok: false, error: 'not_found' }, 404);
+  const id = String(url.searchParams.get('stream_id') || '');
+  if (!/^\d+$/.test(id)) return json({ ok: false, error: 'bad_stream_id' }, 400);
+  try {
+    const t = await getToken(id);
+    const edge = await findEdge(id, t.token, t.exp);
+    const streamUrl = edge + '/stream/' + id + '/index.m3u8?token=' + encodeURIComponent(t.token) + '&exp=' + t.exp;
+    return json({ ok: true, url: streamUrl, exp: t.exp, refresh_in: t.refresh_in, stream_id: id, edge });
+  } catch (e) {
+    return json({ ok: false, error: e.message });
+  }
 }

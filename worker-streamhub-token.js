@@ -1,16 +1,25 @@
-// streamhub-token — Cloudflare Worker
-// Firma gli stream ARK (7nyaler.streamhostingcdn.top) per StreamHub LITE.
-// Endpoint: GET /token?stream_id=N -> { ok:true, url, exp, refresh_in }
+// streamhub-token — Cloudflare Worker (module worker, source of truth)
+// - GET /token?stream_id=N  -> { ok, url, exp, refresh_in, stream_id, edge }
+//     v2: discovery dinamica edge (p6/p5/7nyaler/1nyaler) invece di EDGE fisso 7nyaler.
+// - /presence  (POST heartbeat {id,channel}, GET ?channel=) via Durable Object PresenceDO
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
 const PLAYER_URL = 'https://prohostmedia.top/embed/player?stream=1';
 const PLAYER_REFERER = 'https://www.partite.cc/';
 const PANEL_URL = 'https://panel.streamhostingcdn.top/api/auth/get-stream-token';
 const PANEL_ORIGIN = 'https://prohostmedia.top';
-const EDGE = 'https://7nyaler.streamhostingcdn.top';
+const EDGES = [
+  'https://p6.streamhostingcdn.top',
+  'https://p5.streamhostingcdn.top',
+  'https://7nyaler.streamhostingcdn.top',
+  'https://1nyaler.streamhostingcdn.top',
+];
+const PRESENCE_TTL_MS = 90_000;
+const PRESENCE_MAX = 500;
 
 let proofCache = null;             // { value, exp }
 const tokenCache = new Map();      // id -> { token, exp, refresh_in }
 const inflight = new Map();        // id -> Promise
+const edgeCache = new Map();       // id -> { edge, at } (15 min)
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -18,7 +27,7 @@ function json(data, status = 200) {
     headers: {
       'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       'Access-Control-Allow-Headers': '*',
       'Cache-Control': 'no-store',
     },
@@ -88,28 +97,100 @@ async function getToken(id) {
   try { return await task; } finally { inflight.delete(id); }
 }
 
-export default {
+// Prova un edge: segue i redirect e ritorna l'origin finale + status.
+async function probeEdge(edge, id, token, exp) {
+  const u = edge + '/stream/' + id + '/index.m3u8?token=' + encodeURIComponent(token) + '&exp=' + exp;
+  try {
+    const res = await fetch(u, {
+      headers: { 'User-Agent': UA, Referer: PLAYER_REFERER },
+      redirect: 'follow',
+    });
+    let finalEdge = edge;
+    try { finalEdge = new URL(res.url).origin; } catch {}
+    return { edge: finalEdge, status: res.status };
+  } catch (e) {
+    return { edge, status: 0, error: String(e) };
+  }
+}
+
+// Trova l'edge vivo per questo stream (primo che risponde 200 dopo i redirect).
+// Cache 15 min per id. Se nessun edge risponde 200, fallback al primo (legacy).
+async function findEdge(id, token, exp) {
+  const now = Date.now();
+  const cached = edgeCache.get(id);
+  if (cached && now - cached.at < 15 * 60 * 1000) return cached.edge;
+  const results = await Promise.all(EDGES.map((edge) => probeEdge(edge, id, token, exp)));
+  const pick = results.find((r) => r.status === 200);
+  const chosen = (pick && pick.edge) || EDGES[0];
+  edgeCache.set(id, { edge: chosen, at: now });
+  return chosen;
+}
+
+export class PresenceDO {
+  constructor(state, env) {
+    this.state = state;
+    this.env = env;
+    this.ids = new Map();
+  }
   async fetch(request) {
     const url = new URL(request.url);
-    if (request.method === 'OPTIONS') {
-      return new Response(null, {
-        status: 204,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, OPTIONS',
-          'Access-Control-Allow-Headers': '*',
-        },
-      });
+    const now = Date.now();
+    for (const [id, rec] of this.ids) {
+      if (now - rec.lastSeen > PRESENCE_TTL_MS) this.ids.delete(id);
     }
-    if (url.pathname !== '/token') return json({ ok: false, error: 'not_found' }, 404);
-    const id = String(url.searchParams.get('stream_id') || '');
-    if (!/^\d+$/.test(id)) return json({ ok: false, error: 'bad_stream_id' }, 400);
-    try {
-      const t = await getToken(id);
-      const streamUrl = EDGE + '/stream/' + id + '/index.m3u8?token=' + encodeURIComponent(t.token) + '&exp=' + t.exp;
-      return json({ ok: true, url: streamUrl, exp: t.exp, refresh_in: t.refresh_in, stream_id: id });
-    } catch (e) {
-      return json({ ok: false, error: e.message });
+    if (request.method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const id = String(body.id || 'anon').slice(0, 64);
+      const channel = String(body.channel || '').slice(0, 64);
+      this.ids.set(id, { lastSeen: now, channel });
+      if (this.ids.size > PRESENCE_MAX) {
+        const oldest = [...this.ids.entries()].sort((a, b) => a[1].lastSeen - b[1].lastSeen);
+        while (this.ids.size > PRESENCE_MAX) this.ids.delete(oldest.shift()[0]);
+      }
+      return json({ ok: true, online: this.ids.size });
     }
+    const channel = url.searchParams.get('channel') || '';
+    let count = this.ids.size;
+    if (channel) {
+      count = 0;
+      for (const rec of this.ids.values()) if (rec.channel === channel) count++;
+    }
+    return json({ ok: true, online: count, total: this.ids.size, channel: channel || null });
+  }
+}
+
+async function handleRequest(request, env) {
+  const url = new URL(request.url);
+  if (request.method === 'OPTIONS') {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': '*',
+      },
+    });
+  }
+  if (url.pathname.startsWith('/presence')) {
+    const id = env.PRESENCE.idFromName('global');
+    const stub = env.PRESENCE.get(id);
+    return stub.fetch(request);
+  }
+  if (url.pathname !== '/token') return json({ ok: false, error: 'not_found' }, 404);
+  const id = String(url.searchParams.get('stream_id') || '');
+  if (!/^\d+$/.test(id)) return json({ ok: false, error: 'bad_stream_id' }, 400);
+  try {
+    const t = await getToken(id);
+    const edge = await findEdge(id, t.token, t.exp);
+    const streamUrl = edge + '/stream/' + id + '/index.m3u8?token=' + encodeURIComponent(t.token) + '&exp=' + t.exp;
+    return json({ ok: true, url: streamUrl, exp: t.exp, refresh_in: t.refresh_in, stream_id: id, edge });
+  } catch (e) {
+    return json({ ok: false, error: e.message });
+  }
+}
+
+export default {
+  async fetch(request, env) {
+    return handleRequest(request, env);
   },
 };

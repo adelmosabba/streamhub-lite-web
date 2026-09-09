@@ -1,0 +1,6 @@
+name = "streamhub-token"
+main = "worker-streamhub-token.js"
+compatibility_date = "2025-09-09"
+
+[durable_objects]
+bindings = [{ name = "PRESENCE", class_name = "PresenceDO" }]
