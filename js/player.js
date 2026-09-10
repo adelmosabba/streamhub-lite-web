@@ -7,10 +7,20 @@
 // Niente visibilitychange->close(): il player vive anche in background/PiP
 // (era la causa di "cambio scheda = stream fermo" e "overlay sparito al ritorno").
 // Un solo player alla volta.
+// Rinnovo firma ARK: il token dura ~8 min e i SEGMENTI sono validati dal CDN
+// (403 quando scade) -> la firma nuova viene PREPARATA in anticipo e applicata
+// senza teardown a orario (solo se lo stream sta suonando e la scheda e'
+// visibile), preservando volume/muted scelti dall'utente. Errore fatale =
+// retry con backoff, non piu' game over.
 (function () {
   let hls = null;
   let session = 0;          // guardia: invalida fetch/retry in corso alla chiusura
-  let refreshTimer = null;  // rinnovo token ARK (~10 min, rinnova 30s prima)
+  let refreshTimer = null;  // prefetch firma ARK (~30s prima della scadenza)
+  let pending = null;       // firma fresca pronta e NON ancora applicata
+  let curExpiresAt = 0;     // epoch ms di scadenza della firma in uso
+  let recovery = 0;         // tentativi di recupero consecutivi
+  let renewFn = null;       // chiusura di open(): rinnovo immediato su richiesta
+  const MAX_RECOVERY = 12;
 
   let box = null;           // nodo .player-inline (contiene il <video> vivo)
   let videoEl = null;
@@ -168,6 +178,10 @@
     session++;  // invalida eventuali fetch/retry in corso
     if (hls) { try { hls.destroy(); } catch (e) {} hls = null; }
     if (refreshTimer) { clearTimeout(refreshTimer); refreshTimer = null; }
+    pending = null;
+    curExpiresAt = 0;
+    recovery = 0;
+    renewFn = null;
     videoEl = null;
     wasPlaying = false;
     curKey = '';
@@ -231,6 +245,7 @@
 
     const video = document.getElementById('playerVideo');
     videoEl = video;
+    let recovering = false;   // un recupero e' gia' in coda per questo player
     // Avvio SEMPRE esplicito (play() dopo MANIFEST_PARSED). Con l'attributo
     // autoplay il browser ripartiva da solo quando hls.js ricreava la
     // MediaSource per il rinnovo della firma -> audio dal telefono in pausa.
@@ -247,14 +262,18 @@
 
     // Avvia il player con URL (eventualmente firmato) e pianifica il rinnovo
     // del token ARK ~30s prima della scadenza (visione continua).
-    function playUrl(url, refreshIn, exp, isRefresh) {
+    function playUrl(url, refreshIn, exp, isRefresh, forcePlay) {
       if (mySession !== session) return;
       // Stato REALE dell'elemento PRIMA di distruggere hls.
-      // Se stiamo rinnovando la firma e il video NON stava suonando (pausa
-      // dell'utente, oppure riproduzione remota/cast: l'elemento locale resta
-      // in pausa), il nuovo hls NON deve ripartire da solo. Era il bug:
-      // "dopo ~8 minuti riparte l'audio dal telefono mentre guardo sul TV".
-      const keepPaused = !!isRefresh && (video.paused || video.ended);
+      // keepPaused: non forzare il play quando l'elemento era in pausa (pausa
+      // dell'utente o riproduzione remota/cast: il device suona, l'elemento
+      // locale resta in pausa). forcePlay lo scavalca solo nel recupero, dove
+      // lo stato "stava suonando" e' letto PRIMA dell'errore.
+      const keepPaused = !!isRefresh && !forcePlay && (video.paused || video.ended);
+      // volume/muted scelti dall'utente: non vanno riportati a 1.0 a ogni
+      // rinnovo (era il bug "l'audio torna al massimo dopo ~8 minuti").
+      const keepVolume = video.volume;
+      const keepMuted = video.muted;
       if (keepPaused) { try { video.autoplay = false; } catch (e) {} }
       if (hls) { try { hls.destroy(); } catch (e) {} hls = null; }
       if (refreshTimer) { clearTimeout(refreshTimer); refreshTimer = null; }
@@ -298,13 +317,25 @@
               status.textContent = v === -1 ? 'Streaming (auto)' : 'Streaming (' + qSel.options[qSel.selectedIndex].text + ')';
             };
           }
-          video.muted = false; video.volume = 1.0;
-          // Rinnovo firma: NON forzare il play se l'utente era in pausa.
+          // Ripristina ESATTAMENTE volume/muted di prima (mai forzature a 1.0).
+          try { video.muted = keepMuted; video.volume = keepVolume; } catch (e) {}
+          recovery = 0; recovering = false;   // stream di nuovo sano
           if (!keepPaused) video.play().catch(() => { /* autoplay bloccato: l'utente preme play */ });
           status.textContent = keepPaused ? 'Streaming (in pausa)' : 'Streaming';
         });
         hls.on(Hls.Events.ERROR, (e, data) => {
-          if (data.fatal) { status.textContent = 'Errore stream: ' + data.type; hls.destroy(); hls = null; }
+          if (!data.fatal) return;
+          const wasPlayingNow = !video.paused && !video.ended;   // letto PRIMA di toccare hls
+          // Errore di media (decoder/buffer): prima prova il recupero interno.
+          if (data.type === Hls.ErrorTypes.MEDIA_ERROR && hls && recovery < 2) {
+            recovery++;
+            try { hls.recoverMediaError(); status.textContent = 'Recupero...'; return; } catch (err) {}
+          }
+          // Errore di rete (403 = firma scaduta, CDN che sposta gli stream,
+          // rete instabile). Prima qui si faceva hls.destroy() e ci si
+          // arrendeva: il player moriva con "Errore stream: networkError"
+          // e serviva ricaricare la pagina. Ora ritenta con backoff.
+          recoverStream(data.type, wasPlayingNow);
         });
       } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
         video.src = url;
@@ -314,21 +345,90 @@
         status.textContent = 'HLS non supportato da questo browser';
         return;
       }
-      if (refreshIn > 0) {
-        const delayMs = Math.max((refreshIn - 30) * 1000, 15000);
-        refreshTimer = setTimeout(async () => {
-          if (mySession !== session) return;
-          try {
-            const t2 = await Api.token(channelKey);
-            if (mySession !== session) return;
-            if (t2.ok && t2.url) { status.textContent = 'Rinnovo firma...'; playUrl(t2.url, t2.refresh_in, t2.exp, true); }
-          } catch (e) {
-            status.textContent = 'Rinnovo firma fallito, riprovo tra 60s';
-            if (mySession === session) refreshTimer = setTimeout(() => playUrl(url, refreshIn, exp, true), 60000);
-          }
-        }, delayMs);
-      }
+      curExpiresAt = Date.now() + (Number(refreshIn) || 0) * 1000;
+      schedulePrefetch(refreshIn);
     }
+
+    // Applica la firma fresca preparata in 'pending'. Senza force si applica
+    // SOLO se conviene (stream in play + scheda visibile): in pausa/cast o in
+    // background resta pronta e non tocca nulla (niente audio che riparte).
+    function applyPending(force, forcePlay) {
+      if (mySession !== session) return;
+      if (!pending || !pending.url) return;
+      if (!force && (document.hidden || video.paused)) return;
+      const p = pending; pending = null;
+      const fp = (forcePlay === undefined) ? (!video.paused || wasPlaying) : !!forcePlay;
+      status.textContent = 'Rinnovo firma...';
+      playUrl(p.url, p.refresh_in, p.exp, true, fp);
+    }
+
+    // Prefetch della firma: NESSUN teardown a orario. Si limita a chiedere un
+    // token nuovo e a tenerlo pronto; l'applicazione la decide applyPending().
+    function schedulePrefetch(refreshIn) {
+      if (refreshTimer) { clearTimeout(refreshTimer); refreshTimer = null; }
+      const secs = Number(refreshIn) || 0;
+      if (secs <= 0) return;
+      const delayMs = Math.max((secs - 30) * 1000, 15000);
+      refreshTimer = setTimeout(async () => {
+        if (mySession !== session) return;
+        try {
+          const t2 = await Api.token(channelKey);
+          if (mySession !== session) return;
+          if (t2 && t2.ok && t2.url) {
+            pending = { url: t2.url, exp: t2.exp, refresh_in: t2.refresh_in };
+            applyPending(false);              // swap solo se in play e visibile
+            if (mySession === session) schedulePrefetch(t2.refresh_in);
+          } else {
+            schedulePrefetch(300);            // pannello KO: riprovo tra 5 min
+          }
+        } catch (e) {
+          schedulePrefetch(60);
+        }
+      }, delayMs);
+    }
+
+    // Recupero automatico su errore fatale: backoff 1.5s -> 8s, max 12 giri,
+    // ogni giro rifirma il token e riapre hls. Se stava suonando riparte.
+    function recoverStream(reason, wasPlayingBefore) {
+      if (mySession !== session) return;
+      if (recovering) return;                 // un recupero e' gia' in coda
+      recovering = true;
+      recovery++;
+      if (recovery > MAX_RECOVERY) {
+        status.textContent = 'Errore stream: ' + reason + ' (ricarica la pagina)';
+        if (hls) { try { hls.destroy(); } catch (e) {} hls = null; }
+        recovering = false;
+        return;
+      }
+      const delay = Math.min(1500 * Math.pow(1.4, recovery - 1), 8000);
+      status.textContent = 'Segnale perso, riconnessione ' + recovery + '/' + MAX_RECOVERY + '...';
+      setTimeout(async () => {
+        if (mySession !== session) return;
+        recovering = false;
+        let t = pending; pending = null;
+        if (!t) {
+          try {
+            const r = await Api.token(channelKey);
+            if (mySession !== session) return;
+            if (r && r.ok && r.url) t = { url: r.url, exp: r.exp, refresh_in: r.refresh_in };
+          } catch (e) {}
+        }
+        if (!t) { recoverStream(reason, wasPlayingBefore); return; }
+        playUrl(t.url, t.refresh_in, t.exp, true, wasPlayingBefore);
+      }, delay);
+    }
+
+    // Rinnovo immediato su richiesta (es. scheda tornata visibile con la firma
+    // scaduta mentre era in background: li' i timer rallentano e il prefetch
+    // puo' non essere scattato in tempo).
+    renewFn = () => {
+      if (mySession !== session) return;
+      if (pending && pending.url) { applyPending(true, wasPlaying); return; }
+      Api.token(channelKey).then((t) => {
+        if (mySession !== session) return;
+        if (t && t.ok && t.url) { status.textContent = 'Rinnovo firma...'; playUrl(t.url, t.refresh_in, t.exp, true, wasPlaying); }
+      }).catch(() => {});
+    };
 
     function startStream(attempt) {
       Api.token(channelKey).then((t) => {
@@ -374,10 +474,15 @@
   // restano vivi perche' nessun handler li interrompe.
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) { if (videoEl) wasPlaying = !videoEl.paused; return; }
-    if (videoEl && wasPlaying) { try { videoEl.play().catch(() => {}); } catch (e) {} }
+    if (!videoEl) return;
+    // In background i timer rallentano: la firma puo' essere scaduta mentre la
+    // scheda era nascosta -> al ritorno rinnovo immediato invece di aspettare.
+    if (curKey && curExpiresAt && Date.now() > curExpiresAt - 20000) { if (renewFn) renewFn(); return; }
+    if (wasPlaying) { try { videoEl.play().catch(() => {}); } catch (e) {} }
   });
 
   window.addEventListener('resize', () => { if (box && curMode === 'dock') reattach(); });
 
-  window.Player = { open, close, reattach, isOpen: () => !!box, current: () => curKey };
+  window.Player = { open, close, reattach, isOpen: () => !!box, current: () => curKey,
+    renewNow: () => { if (renewFn) renewFn(); } };
 })();
