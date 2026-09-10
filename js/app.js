@@ -5,6 +5,12 @@ const state = { view: 'events', search: '', sport: '', activeDay: '', epgCache: 
 const appEl = document.getElementById('app');
 const sportFilter = document.getElementById('sportFilter');
 
+// Il player inline non deve morire quando la lista viene re-renderizzata:
+// dopo OGNI render lo ri-agganciamo sotto la sua card (stesso <video>, hls vivo).
+function reattachPlayer() {
+  try { if (window.Player && window.Player.reattach) window.Player.reattach(); } catch (e) {}
+}
+
 // Firma degli stati evento (client-side): cambia quando un evento diventa live o finisce.
 function eventsSignature(events) {
   return (events || []).map(e => e.home + '|' + e.away + '|' + e.start_time + '|' + e.status).join(';');
@@ -74,6 +80,7 @@ async function loadEventsView() {
   ], state.activeDay);
   appEl.innerHTML = tabs + Views.events(data.events);
   bindDayTabs();
+  reattachPlayer();
 }
 
 function bindDayTabs() {
@@ -89,6 +96,7 @@ function bindDayTabs() {
 async function loadChannels() {
   const data = await Api.channels({});
   appEl.innerHTML = Views.channels(data.channels);
+  reattachPlayer();
 }
 
 // --- EPG grid ---
@@ -139,6 +147,7 @@ function renderEpgGrid() {
 
   appEl.innerHTML = epgToolbarHtml() + Views.epgGrid(channels, state.epgCache, winStart, { nowLeftPx });
   bindEpgControls();
+  reattachPlayer();
 }
 
 function bindEpgControls() {
@@ -216,6 +225,7 @@ async function refresh() {
     appEl.innerHTML = '<div class="empty">Errore: ' + e.message + '</div>';
   } finally {
     appEl.classList.remove('is-loading');
+    reattachPlayer();
   }
 }
 

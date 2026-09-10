@@ -190,3 +190,43 @@ footer { text-align: center; color: #5a6280; padding: 24px; padding-bottom: calc
 @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.25; } }
 .card-live { border:1px solid #ef4444; box-shadow:0 0 12px rgba(239,68,68,.18); }
 .card-live .time { color:#ef4444; }
+
+/* ============================================================
+   Player INLINE (sostituisce l'overlay): si posiziona nel flusso
+   della pagina, subito sotto la card/riga cliccata.
+   ============================================================ */
+.player-inline {
+  background: #141824;
+  border: 1px solid #2a3150;
+  border-radius: 12px;
+  padding: 12px;
+  margin: 0 0 12px;
+  box-shadow: 0 6px 24px rgba(0,0,0,.35);
+  animation: pi-in .18s ease-out;
+}
+@keyframes pi-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+
+/* nella griglia canali occupa tutta la riga */
+.player-inline.is-grid { grid-column: 1 / -1; }
+
+/* EPG / nessuna card disponibile: resta agganciato in alto mentre scorri */
+.player-inline.is-dock {
+  position: sticky;
+  top: 8px;
+  z-index: 40;
+  border-color: #3b82f6;
+  box-shadow: 0 8px 30px rgba(0,0,0,.55);
+}
+
+.player-inline .player-head { margin-bottom: 8px; font-size: 14px; }
+.player-inline .player-head b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.player-head-btns { display: flex; gap: 6px; flex-shrink: 0; }
+.player-inline #playerVideo { display: block; width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 8px; }
+.player-inline .player-box { width: auto; padding: 0; background: none; box-shadow: none; }
+
+/* mobile: meno padding, video piu' largo possibile */
+@media (max-width: 640px) {
+  .player-inline { padding: 8px; border-radius: 10px; }
+  .player-inline.is-dock { position: static; }
+  .player-inline .player-epg { max-height: 140px; }
+}
