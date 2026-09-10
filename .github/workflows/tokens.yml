@@ -1,8 +1,10 @@
 name: token-keeper
 
 on:
-  schedule:
-    - cron: '*/7 * * * *'   # ogni 7 minuti (token ARK durano ~13 min)
+  # KEEPER SOSPESO 2026-09-10: pubblicava proof+token su branch pubblico `tokens`.
+  # Per riattivare: togliere i commenti alle righe schedule/cron e committare.
+  # schedule:
+  #   - cron: '*/7 * * * *'   # ogni 7 minuti (token ARK durano ~13 min)
   workflow_dispatch: {}
 
 permissions:
