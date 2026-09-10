@@ -205,7 +205,7 @@
       '<button id="playerExternal" class="close" title="Apri in player esterno (copia URL)">📺</button>' +
       '<button id="playerClose" class="close" title="Chiudi player">✕</button>' +
       '</span></div>' +
-      '<video id="playerVideo" controls autoplay playsinline></video>' +
+      '<video id="playerVideo" controls playsinline></video>' +
       '<div id="playerQWrap" class="player-qwrap" style="display:none;align-items:center;gap:8px;padding:6px 0;font-size:13px;color:#8b949e">' +
       '<label for="playerQuality">Qualità:</label>' +
       '<select id="playerQuality" style="background:#161b22;color:#e6edf3;border:1px solid #30363d;border-radius:6px;padding:4px 8px"></select>' +
@@ -231,6 +231,10 @@
 
     const video = document.getElementById('playerVideo');
     videoEl = video;
+    // Avvio SEMPRE esplicito (play() dopo MANIFEST_PARSED). Con l'attributo
+    // autoplay il browser ripartiva da solo quando hls.js ricreava la
+    // MediaSource per il rinnovo della firma -> audio dal telefono in pausa.
+    video.autoplay = false;
     // audio attivo per default
     video.muted = false;
     video.volume = 1.0;
@@ -243,8 +247,15 @@
 
     // Avvia il player con URL (eventualmente firmato) e pianifica il rinnovo
     // del token ARK ~30s prima della scadenza (visione continua).
-    function playUrl(url, refreshIn, exp) {
+    function playUrl(url, refreshIn, exp, isRefresh) {
       if (mySession !== session) return;
+      // Stato REALE dell'elemento PRIMA di distruggere hls.
+      // Se stiamo rinnovando la firma e il video NON stava suonando (pausa
+      // dell'utente, oppure riproduzione remota/cast: l'elemento locale resta
+      // in pausa), il nuovo hls NON deve ripartire da solo. Era il bug:
+      // "dopo ~8 minuti riparte l'audio dal telefono mentre guardo sul TV".
+      const keepPaused = !!isRefresh && (video.paused || video.ended);
+      if (keepPaused) { try { video.autoplay = false; } catch (e) {} }
       if (hls) { try { hls.destroy(); } catch (e) {} hls = null; }
       if (refreshTimer) { clearTimeout(refreshTimer); refreshTimer = null; }
       if (window.Hls && Hls.isSupported()) {
@@ -288,16 +299,17 @@
             };
           }
           video.muted = false; video.volume = 1.0;
-          video.play().catch(() => { /* autoplay bloccato: l'utente preme play */ });
-          status.textContent = 'Streaming';
+          // Rinnovo firma: NON forzare il play se l'utente era in pausa.
+          if (!keepPaused) video.play().catch(() => { /* autoplay bloccato: l'utente preme play */ });
+          status.textContent = keepPaused ? 'Streaming (in pausa)' : 'Streaming';
         });
         hls.on(Hls.Events.ERROR, (e, data) => {
           if (data.fatal) { status.textContent = 'Errore stream: ' + data.type; hls.destroy(); hls = null; }
         });
       } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
         video.src = url;
-        video.play().catch(() => {});
-        status.textContent = 'Streaming';
+        if (!keepPaused) video.play().catch(() => {});
+        status.textContent = keepPaused ? 'Streaming (in pausa)' : 'Streaming';
       } else {
         status.textContent = 'HLS non supportato da questo browser';
         return;
@@ -309,10 +321,10 @@
           try {
             const t2 = await Api.token(channelKey);
             if (mySession !== session) return;
-            if (t2.ok && t2.url) { status.textContent = 'Rinnovo firma...'; playUrl(t2.url, t2.refresh_in, t2.exp); }
+            if (t2.ok && t2.url) { status.textContent = 'Rinnovo firma...'; playUrl(t2.url, t2.refresh_in, t2.exp, true); }
           } catch (e) {
             status.textContent = 'Rinnovo firma fallito, riprovo tra 60s';
-            if (mySession === session) refreshTimer = setTimeout(() => playUrl(url, refreshIn, exp), 60000);
+            if (mySession === session) refreshTimer = setTimeout(() => playUrl(url, refreshIn, exp, true), 60000);
           }
         }, delayMs);
       }
